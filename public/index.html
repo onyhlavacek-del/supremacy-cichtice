@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#EDEBE6">
+<title>Supremacy Čichtice</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="map"></canvas>
+
+<!-- horní lišta surovin -->
+<header id="topbar" class="hidden">
+  <div id="resbar"></div>
+</header>
+
+<!-- menu (tři čárky): žebříček, chat, diplomacie -->
+<button id="menu-btn" class="hidden" aria-label="Menu">
+  <svg viewBox="0 0 20 20" width="20" height="20"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  <span id="menu-badge" class="hidden"></span>
+</button>
+<div id="drawer-overlay" class="hidden"></div>
+<aside id="drawer" class="hidden">
+  <div id="drawer-tabs">
+    <button data-d="board" class="active">Žebříček</button>
+    <button data-d="chat">Chat</button>
+    <button data-d="diplo">Diplomacie</button>
+  </div>
+  <div id="drawer-content"></div>
+  <div id="chat-row" class="hidden">
+    <select id="chat-to"></select>
+    <input id="chat-text" placeholder="Napiš zprávu…" maxlength="400" autocomplete="off">
+    <button id="chat-send" class="btn small">Poslat</button>
+  </div>
+</aside>
+
+<!-- výběrový režim (cíl pohybu apod.) -->
+<div id="pickbar" class="hidden">
+  <span id="picktext">Vyber cíl na mapě</span>
+  <button id="pickcancel" class="btn small ghost">Zrušit</button>
+</div>
+
+<!-- spodní panel vybrané provincie / obsahu záložky -->
+<section id="sheet" class="hidden">
+  <div id="sheet-grip"></div>
+  <div id="sheet-content"></div>
+</section>
+
+<!-- záložky -->
+<nav id="tabs" class="hidden">
+  <div id="tab-pill"></div>
+  <button data-tab="map" class="active">Mapa</button>
+  <button data-tab="armies">Armády</button>
+  <button data-tab="trade">Obchod</button>
+  <button data-tab="trips">Výpravy</button>
+  <button data-tab="empire">Říše</button>
+</nav>
+
+<!-- přihlašovací brána -->
+<div id="gate">
+  <div id="gate-card">
+    <h1>Supremacy<br><span>Čichtice</span></h1>
+    <div id="gate-step-login">
+      <input id="g-name" placeholder="Jméno" autocomplete="username" maxlength="24">
+      <input id="g-pass" type="password" placeholder="Heslo" autocomplete="current-password">
+      <button id="g-login" class="btn">Přihlásit se</button>
+      <button id="g-to-register" class="btn ghost">Jsem tu poprvé — založit hráče</button>
+      <p id="g-msg"></p>
+    </div>
+    <div id="gate-step-house" class="hidden">
+      <p class="hint">Ťukni na mapě na dům, ve kterém bydlíš. Bude to tvoje startovní území a hlavní město.</p>
+      <p id="g-house-name" class="picked">Žádný dům nevybrán</p>
+      <button id="g-register" class="btn" disabled>Založit říši</button>
+      <button id="g-back" class="btn ghost">Zpět</button>
+      <p id="g-msg2"></p>
+    </div>
+  </div>
+</div>
+
+<!-- dialog: dům je obsazený -->
+<div id="dlg-occupied" class="dlg hidden">
+  <div class="dlg-card">
+    <h2>Tenhle dům už někdo má</h2>
+    <p>Dům patří hráči <b id="dlg-owner"></b>. Opravdu je to tvůj dům? Nespletl ses?</p>
+    <button id="dlg-change" class="btn">Vybrat jiný dům</button>
+    <button id="dlg-really" class="btn ghost">Je to fakt můj dům</button>
+  </div>
+</div>
+<div id="dlg-sibling" class="dlg hidden">
+  <div class="dlg-card">
+    <h2>Bydlíte spolu</h2>
+    <p>Jak to chcete hrát?</p>
+    <button id="dlg-team" class="btn">Hrát spolu — jedna společná říše</button>
+    <button id="dlg-split" class="btn ghost">Rozdělit dům napůl — hraju sám</button>
+    <p class="hint">Při rozdělení na sebe 3 dny nemůžete útočit.</p>
+  </div>
+</div>
+
+<!-- tutoriál -->
+<div id="tutorial" class="dlg hidden">
+  <div class="dlg-card" id="tut-card">
+    <h2 id="tut-title"></h2>
+    <p id="tut-text"></p>
+    <div id="tut-dots"></div>
+    <div class="btn-row">
+      <button id="tut-prev" class="btn ghost small">Zpět</button>
+      <button id="tut-next" class="btn small">Další</button>
+    </div>
+    <button id="tut-close" class="btn ghost small" style="margin-top:6px">Zavřít tutoriál</button>
+  </div>
+</div>
+
+<!-- toast notifikace -->
+<div id="toasts"></div>
+
+<script src="map.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

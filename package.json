@@ -1,0 +1,17 @@
+{
+  "name": "supremacy-cichtice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Realtime strategie pro Čichtice — inspirováno Supremacy 1914, hrané na skutečné mapě vesnice",
+  "type": "module",
+  "scripts": {
+    "build-map": "node scripts/build-map.mjs",
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "devDependencies": {
+    "d3-delaunay": "^6.0.4",
+    "polygon-clipping": "^0.15.7",
+    "playwright-core": "^1.62.1"
+  }
+}

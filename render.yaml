@@ -1,0 +1,14 @@
+# Render.com blueprint — free web služba pro Supremacy Čichtice
+services:
+  - type: web
+    name: supremacy-cichtice
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /api/rules
+    envVars:
+      - key: BACKUP_BOT_TOKEN
+        sync: false   # nastavit ručně v dashboardu (Discord bot token)
+      - key: BACKUP_CHANNEL_ID
+        sync: false   # ID kanálu #supremacy-zalohy

@@ -1,0 +1,283 @@
+/* Supremacy Čichtice — Tesla styl: čisté plochy, žádný mapový šum */
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #EDEBE6;
+  color: #2B2A28;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hidden { display: none !important; }
+
+#map { position: fixed; inset: 0; touch-action: none; }
+
+/* ---------- horní lišta ---------- */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  padding: calc(env(safe-area-inset-top) + 6px) 8px 6px;
+  background: linear-gradient(#EDEBE6EE, #EDEBE600);
+  pointer-events: none;
+  z-index: 20;
+}
+#resbar {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  pointer-events: auto;
+}
+#resbar::-webkit-scrollbar { display: none; }
+.res {
+  display: flex; align-items: center; gap: 4px;
+  background: #FFFFFFDD; border: 1px solid #DAD6CE; border-radius: 20px;
+  padding: 3px 9px 3px 5px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+.res svg { width: 15px; height: 15px; }
+.res.day { background: #2B2A28; color: #fff; border-color: #2B2A28; }
+.res i { font-style: normal; font-size: 9.5px; font-weight: 700; margin-left: 1px; }
+.res i.plus { color: #2E7D32; }
+.res i.minus { color: #C62828; }
+
+/* ---------- záložky ---------- */
+#tabs {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: flex; z-index: 30;
+  background: #FFFFFFF2; border-top: 1px solid #DAD6CE;
+  padding-bottom: env(safe-area-inset-bottom);
+  backdrop-filter: blur(8px);
+}
+#tabs { position: fixed; }
+#tabs button {
+  flex: 1; border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 600;
+  color: #8B877F; padding: 12px 0; cursor: pointer; position: relative; z-index: 1;
+  transition: color .2s ease;
+}
+#tabs button.active { color: #2B2A28; }
+/* klouzající pilulka pod aktivní záložkou */
+#tab-pill {
+  position: absolute; top: 7px; height: 30px; border-radius: 15px;
+  background: #E9E6DF; z-index: 0;
+  transition: left .25s cubic-bezier(.3,.9,.3,1), width .25s cubic-bezier(.3,.9,.3,1);
+}
+
+/* ---------- menu (tři čárky) + šuplík ---------- */
+#menu-btn {
+  position: fixed; top: calc(env(safe-area-inset-top) + 44px); right: 10px; z-index: 32;
+  width: 40px; height: 40px; border-radius: 20px; border: 1px solid #DAD6CE;
+  background: #FFFFFFEE; color: #2B2A28; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px #00000018; backdrop-filter: blur(4px);
+}
+#menu-badge {
+  position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
+  border-radius: 5px; background: #C62828;
+}
+#drawer-overlay { position: fixed; inset: 0; z-index: 34; background: #00000044; }
+#drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 35;
+  width: min(330px, 88vw);
+  background: #FFFFFF; box-shadow: -8px 0 30px #00000025;
+  display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  animation: drawer-in .22s ease;
+}
+@keyframes drawer-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+#drawer-tabs { display: flex; gap: 4px; padding: 12px 12px 8px; }
+#drawer-tabs button {
+  flex: 1; border: 0; border-radius: 10px; background: #F1EFEA; color: #6B675F;
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 8px 0; cursor: pointer;
+}
+#drawer-tabs button.active { background: #2B2A28; color: #fff; }
+#drawer-content { flex: 1; overflow-y: auto; padding: 6px 14px 12px; }
+#chat-row {
+  display: flex; gap: 8px; padding: 8px 12px calc(env(safe-area-inset-bottom) + 10px);
+  border-top: 1px solid #F0EDE8;
+}
+#chat-row input { margin: 0; flex: 1; }
+.chatmsg { margin: 7px 0; font-size: 13.5px; }
+.chatmsg .who { font-weight: 700; }
+.chatmsg .when { color: #8B877F; font-size: 11px; margin-left: 6px; }
+.chatmsg.private { background: #F5F1E8; border-radius: 8px; padding: 5px 8px; }
+.chatmsg .priv { color: #B8860B; font-size: 11px; font-weight: 700; }
+#chat-row select { margin: 0; width: 92px; flex: none; padding: 8px 6px; font-size: 12.5px; }
+@media (prefers-color-scheme: dark) {
+  .chatmsg.private { background: #2C2A22; }
+}
+
+/* ---------- spodní panel ---------- */
+#sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+  background: #FFFFFF; border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 30px #00000022;
+  max-height: 62vh; display: flex; flex-direction: column;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 52px);
+}
+#sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: #D6D2CA; margin: 8px auto 2px; flex: none; }
+#sheet-content { overflow-y: auto; padding: 8px 14px 14px; }
+#sheet h2 { font-size: 17px; margin-bottom: 2px; display: flex; align-items: center; gap: 8px; }
+#sheet h3 { font-size: 13px; margin: 12px 0 6px; color: #6B675F; text-transform: uppercase; letter-spacing: .4px; }
+.sub { color: #8B877F; font-size: 12.5px; margin-bottom: 8px; }
+.owner-dot { width: 10px; height: 10px; border-radius: 5px; display: inline-block; flex: none; }
+
+.row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #F0EDE8; font-size: 14px; }
+.row:last-child { border-bottom: 0; }
+.row .meta { color: #8B877F; font-size: 12px; }
+
+.btn {
+  display: block; width: 100%; border: 0; border-radius: 12px;
+  background: #2B2A28; color: #fff; font: inherit; font-size: 14.5px; font-weight: 600;
+  padding: 12px; margin-top: 8px; cursor: pointer;
+}
+.btn:disabled { opacity: .4; }
+.btn.ghost { background: #F1EFEA; color: #2B2A28; }
+.btn.small { width: auto; padding: 7px 14px; font-size: 13px; margin: 0; }
+.btn.danger { background: #C62828; }
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { margin-top: 8px; }
+
+.bar { height: 5px; border-radius: 3px; background: #EFEDE8; overflow: hidden; margin-top: 3px; }
+.bar i { display: block; height: 100%; border-radius: 3px; background: #2E7D32; }
+
+/* výrobní řádky (styl Supremacy: název, cena, čas, tlačítko) */
+.prod {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid #F0EDE8; font-size: 14px;
+}
+.prod:last-child { border-bottom: 0; }
+.prod.locked { opacity: .55; }
+.prod .meta { color: #8B877F; font-size: 11.5px; display: block; margin-top: 2px; }
+.prod-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.aimg { object-fit: contain; flex: none; align-self: center; margin-right: 2px; }
+.prod-right .meta { margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: #F1EFEA; border-radius: 8px; padding: 2px 7px 2px 4px;
+  font-size: 11.5px; font-weight: 600; white-space: nowrap;
+}
+.chip svg { width: 13px; height: 13px; }
+.chip.miss { background: #FBE7E7; color: #C62828; }
+.warnbox {
+  background: #FBE7E7; color: #C62828; font-weight: 700; font-size: 13.5px;
+  border-radius: 10px; padding: 9px 12px; margin: 8px 0;
+}
+
+input, select {
+  width: 100%; border: 1px solid #DAD6CE; border-radius: 10px;
+  padding: 11px 12px; font: inherit; font-size: 14.5px; margin-top: 8px;
+  background: #fff; color: inherit;
+}
+.inline { display: flex; gap: 8px; }
+.inline > * { flex: 1; }
+
+/* ---------- výběrový režim ---------- */
+#pickbar {
+  position: fixed; top: calc(env(safe-area-inset-top) + 46px); left: 12px; right: 12px; z-index: 26;
+  background: #2B2A28; color: #fff; border-radius: 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 10px 10px 14px; font-size: 13.5px; font-weight: 600;
+}
+#pickbar .btn { background: #ffffff22; color: #fff; }
+
+/* ---------- brána ---------- */
+#gate {
+  position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center;
+  pointer-events: none;
+}
+#gate-card {
+  pointer-events: auto;
+  width: 100%; max-width: 430px;
+  background: #FFFFFFF5; backdrop-filter: blur(10px);
+  border-radius: 20px 20px 0 0; padding: 20px 18px calc(env(safe-area-inset-bottom) + 18px);
+  box-shadow: 0 -8px 40px #00000033;
+}
+#gate h1 { font-size: 22px; line-height: 1.1; margin-bottom: 12px; }
+#gate h1 span { color: #8B877F; font-weight: 600; }
+#gate .hint { font-size: 13px; color: #6B675F; }
+#gate .picked { font-weight: 700; font-size: 15px; margin-top: 10px; }
+#g-msg, #g-msg2 { color: #C62828; font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+/* ---------- dialogy ---------- */
+.dlg { position: fixed; inset: 0; z-index: 50; background: #00000055; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.dlg-card { background: #fff; border-radius: 16px; padding: 20px 18px; max-width: 380px; width: 100%; }
+.dlg-card h2 { font-size: 17px; margin-bottom: 8px; }
+.dlg-card p { font-size: 14px; color: #4B4843; }
+.dlg-card .hint { font-size: 12px; color: #8B877F; margin-top: 8px; }
+
+/* ---------- bublina s názvem suroviny ---------- */
+#rtip {
+  position: fixed; z-index: 70; pointer-events: none;
+  background: #2B2A28F0; color: #fff;
+  padding: 5px 10px; border-radius: 9px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 3px 12px #00000033;
+  transition: opacity .12s ease;
+}
+#rtip.hidden { display: block !important; opacity: 0; visibility: hidden; }
+@media (prefers-color-scheme: dark) {
+  #rtip { background: #E8E6E1F0; color: #191A1C; }
+}
+
+/* ---------- bublina provincie ---------- */
+#pbubble {
+  position: fixed; z-index: 28; width: 232px;
+  background: #FFFFFFF6; backdrop-filter: blur(6px);
+  border: 1px solid #DAD6CE; border-radius: 14px;
+  padding: 11px 13px; font-size: 13.5px;
+  box-shadow: 0 6px 24px #00000028;
+}
+#pbubble b { font-size: 14.5px; }
+#pbubble .sub { margin: 3px 0 0; font-size: 12px; }
+#pbubble .chips { margin-top: 6px; }
+#pbubble .btn-row .btn { margin-top: 4px; }
+@media (prefers-color-scheme: dark) {
+  #pbubble { background: #202226F6; border-color: #3A3D42; }
+}
+
+/* ---------- tutoriál ---------- */
+#tutorial { z-index: 55; }
+#tut-card { max-width: 400px; }
+#tut-text { min-height: 110px; line-height: 1.45; }
+#tut-dots { display: flex; gap: 5px; justify-content: center; margin: 10px 0 2px; }
+#tut-dots i { width: 7px; height: 7px; border-radius: 4px; background: #D6D2CA; }
+#tut-dots i.on { background: #2B2A28; width: 18px; }
+@media (prefers-color-scheme: dark) {
+  #tut-dots i { background: #3A3D42; }
+  #tut-dots i.on { background: #E8E6E1; }
+}
+
+/* ---------- toasty ---------- */
+#toasts { position: fixed; top: calc(env(safe-area-inset-top) + 44px); left: 12px; right: 12px; z-index: 60; pointer-events: none; }
+.toast {
+  background: #2B2A28EE; color: #fff; border-radius: 12px; padding: 10px 14px;
+  font-size: 13.5px; margin-bottom: 6px; box-shadow: 0 4px 20px #00000033;
+  animation: toast-in .25s ease;
+}
+@keyframes toast-in { from { transform: translateY(-8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- tmavý režim (noční jízda) ---------- */
+@media (prefers-color-scheme: dark) {
+  body { background: #191A1C; color: #E8E6E1; }
+  #topbar { background: linear-gradient(#191A1CEE, #191A1C00); }
+  .res { background: #26282BDD; border-color: #3A3D42; color: #E8E6E1; }
+  #tabs { background: #202226F2; border-color: #33363B; }
+  #tabs button.active { color: #E8E6E1; }
+  #tabs button.active::after { background: #E8E6E1; }
+  #sheet { background: #202226; }
+  .row { border-color: #2C2F34; }
+  .btn { background: #E8E6E1; color: #191A1C; }
+  .btn.ghost { background: #2C2F34; color: #E8E6E1; }
+  input, select { background: #26282B; border-color: #3A3D42; color: #E8E6E1; }
+  #gate-card, .dlg-card { background: #202226F5; color: #E8E6E1; }
+  .dlg-card p { color: #B9B6AF; }
+  .bar { background: #2C2F34; }
+  .prod { border-color: #2C2F34; }
+  .chip { background: #2C2F34; }
+  .chip.miss { background: #4A2626; color: #FF8A80; }
+  .warnbox { background: #4A2626; color: #FF8A80; }
+  #tab-pill { background: #2C2F34; }
+  #menu-btn { background: #26282BEE; border-color: #3A3D42; color: #E8E6E1; }
+  #drawer { background: #202226; }
+  #drawer-tabs button { background: #2C2F34; color: #B9B6AF; }
+  #drawer-tabs button.active { background: #E8E6E1; color: #191A1C; }
+  #chat-row { border-color: #2C2F34; }
+}
