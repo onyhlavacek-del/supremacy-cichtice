@@ -11,7 +11,12 @@
   },
   "devDependencies": {
     "d3-delaunay": "^6.0.4",
-    "polygon-clipping": "^0.15.7",
     "playwright-core": "^1.62.1"
+  },
+  "dependencies": {
+    "polygon-clipping": "^0.15.7"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
