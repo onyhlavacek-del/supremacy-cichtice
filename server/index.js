@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 import pc from 'polygon-clipping';
 import * as C from './constants.js';
-import { restoreBackup, startBackups } from './backup.js';
+import { restoreBackup, startBackups, backupLog } from './backup.js';
+const BOOT_TS = Date.now();
 
 // před otevřením databáze zkus obnovit zálohu (hosting bez trvalého disku)
 await restoreBackup();
@@ -867,6 +868,16 @@ const server = createServer(async (req, res) => {
       console.error(key, e);
       return send(res, 500, { error: 'Chyba serveru.' });
     }
+  }
+  if (url.pathname === '/api/health') {
+    // dálková diagnostika: stav obnovy zálohy po studeném startu
+    return send(res, 200, {
+      boot: new Date(BOOT_TS).toISOString(),
+      uptimeMin: Math.round((Date.now() - BOOT_TS) / 60_000),
+      players: q.get('SELECT COUNT(*) AS n FROM players').n,
+      envBackup: !!(process.env.BACKUP_BOT_TOKEN && process.env.BACKUP_CHANNEL_ID),
+      backupLog,
+    });
   }
   if (url.pathname === '/api/whoami') {
     const player = auth(req);
