@@ -1,5 +1,5 @@
 // Service worker: cache statických souborů, síť má přednost (hra je živá)
-const CACHE = 'supremacy-v1';
+const CACHE = 'supremacy-v2';
 const ASSETS = ['/', '/style.css', '/map.js', '/app.js', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
@@ -12,7 +12,8 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api/')) return; // API vždy ze sítě
+  const cacheable = url.pathname === '/api/map' || url.pathname === '/api/rules' || url.pathname.startsWith('/img/');
+  if (url.pathname.startsWith('/api/') && !cacheable) return; // živé API vždy ze sítě
   e.respondWith(
     fetch(e.request).then((r) => {
       const copy = r.clone();

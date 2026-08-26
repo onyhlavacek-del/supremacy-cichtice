@@ -368,7 +368,7 @@ function snapshot(player) {
 }
 
 // ---------- mini-Strava: vyhodnocení pozice ----------
-function checkPois(player, x, y) {
+function checkPois(player, x, y, ts = ts) {
   const pid = G.effId(player);
   const results = [];
   const trip = q.get("SELECT * FROM trips WHERE player_id = ? AND status = 'active'", player.id);
@@ -383,14 +383,14 @@ function checkPois(player, x, y) {
     const key = `${poi.type}:${poi.name}`;
     const already = q.get('SELECT 1 AS x FROM visits WHERE player_id = ? AND poi_key = ?', pid, key);
     if (already) continue;
-    q.run('INSERT INTO visits (player_id, poi_key, ts) VALUES (?, ?, ?)', pid, key, Date.now());
+    q.run('INSERT INTO visits (player_id, poi_key, ts) VALUES (?, ?, ?)', pid, key, ts);
     // zdolaný kopec odkryje velký kruh okolí (nápad Matěje: rozhled z vrcholu)
     if (poi.type === 'peak') G.addDiscovery(pid, poi.x, poi.y, 700);
     let rewardText = '';
     if (trip) {
       // ověření tempa: vzdálenost od startu výletu vs. čas
       const walkedKm = Math.hypot(x - trip.start_x, y - trip.start_y) / 1000;
-      const hours = Math.max(0.02, (Date.now() - trip.start_ts) / 3600_000);
+      const hours = Math.max(0.02, (ts - trip.start_ts) / 3600_000);
       const speed = walkedKm / hours;
       const maxSpeed = trip.kind === 'bike' ? C.TRIP_BIKE_MAX_KMH : C.TRIP_WALK_MAX_KMH;
       // anti-auto: odměna se počítá z REÁLNĚ ušlé vzdálenosti (start výpravy -> cíl),
@@ -423,7 +423,7 @@ function checkPois(player, x, y) {
           const n = q.all("SELECT poi_key FROM visits WHERE player_id = ? AND poi_key LIKE 'peak:%'", pid).length;
           for (const a of C.HILL_ACHIEVEMENTS) {
             if (n === a.count) {
-              q.run('INSERT OR IGNORE INTO badges (player_id, badge, ts) VALUES (?, ?, ?)', pid, a.label, Date.now());
+              q.run('INSERT OR IGNORE INTO badges (player_id, badge, ts) VALUES (?, ?, ?)', pid, a.label, ts);
               G.addRes(pid, 'money', a.money);
               G.notify(pid, 'badge', `Odznak „${a.label}" za ${a.count} kopců! Odměna ${a.money} peněz.`);
             }
@@ -436,11 +436,34 @@ function checkPois(player, x, y) {
       rewardText = poi.type === 'town' ? 'objeveno — obchod odemčen (odměny jen s aktivním výletem)' : 'objeveno (odměny jen s aktivním výletem)';
     }
     const poiLabel = poi.type === 'peak' ? (poi.tower ? 'Rozhledna' : 'Kopec') : 'Město';
-    q.run('INSERT OR IGNORE INTO badges (player_id, badge, ts) VALUES (?, ?, ?)', pid, `${poiLabel}: ${poi.name}`, Date.now());
+    q.run('INSERT OR IGNORE INTO badges (player_id, badge, ts) VALUES (?, ?, ?)', pid, `${poiLabel}: ${poi.name}`, ts);
     G.notify(pid, 'poi', `${poiLabel} ${poi.name} (${poi.km} km): ${rewardText}`);
     results.push(key);
   }
   return results;
+}
+
+// zpracování jedné polohy (živé i z offline záznamu): anti-auto, přítomnost, mlha, kopce/města
+function applyPosition(player, lat, lon, ts) {
+  const [x, y] = G.projLL(lat, lon);
+  const prev = q.get('SELECT * FROM presence WHERE player_id = ?', player.id);
+  let reveal = true;
+  if (prev && ts > prev.ts) {
+    const dtH = (ts - prev.ts) / 3600_000;
+    if (dtH > 0.001 && dtH < 0.17) {
+      const kmh = (Math.hypot(x - prev.x, y - prev.y) / 1000) / dtH;
+      if (kmh > 30) reveal = false; // auto/autobus neodkrývá mlhu
+    }
+  }
+  // přítomnost ukládej jen pokud je bod novější než dosavadní (dávka může být starší)
+  if (!prev || ts >= prev.ts) {
+    q.run('INSERT INTO presence (player_id, x, y, ts) VALUES (?, ?, ?, ?) ON CONFLICT(player_id) DO UPDATE SET x = ?, y = ?, ts = ?',
+      player.id, x, y, ts, x, y, ts);
+  }
+  if (reveal) G.addDiscovery(G.effId(player), x, y, 150);
+  const boosted = (Date.now() - ts < 10 * 60_000) ? G.applyPresenceBoosts(player) : [];
+  const pois = checkPois(player, x, y, ts);
+  return { x: Math.round(x), y: Math.round(y), reveal, boosted, pois };
 }
 
 // ---------- API router ----------
@@ -502,23 +525,28 @@ const routes = {
   'POST /api/position': async (req, res, player) => {
     const { lat, lon } = await readBody(req);
     if (typeof lat !== 'number' || typeof lon !== 'number') return send(res, 400, { error: 'Chybí poloha.' });
-    const [x, y] = G.projLL(lat, lon);
-    // anti-auto: mlhu odkrývá jen chůze/kolo (do ~30 km/h mezi dvěma polohami)
-    const prev = q.get('SELECT * FROM presence WHERE player_id = ?', player.id);
-    let reveal = true;
-    if (prev) {
-      const dtH = (Date.now() - prev.ts) / 3600_000;
-      if (dtH > 0.001 && dtH < 0.17) {
-        const kmh = (Math.hypot(x - prev.x, y - prev.y) / 1000) / dtH;
-        if (kmh > 30) reveal = false;
-      }
+    const r = applyPosition(player, lat, lon, Date.now());
+    send(res, 200, { ok: true, ...r });
+  },
+  // offline procházka: telefon uložil trasu bez dat a teď ji posílá najednou
+  'POST /api/positions/batch': async (req, res, player) => {
+    const { points } = await readBody(req);
+    if (!Array.isArray(points)) return send(res, 400, { error: 'Chybí body.' });
+    const now = Date.now();
+    const pts = points
+      .filter((p) => typeof p.lat === 'number' && typeof p.lon === 'number' && typeof p.ts === 'number')
+      .filter((p) => p.ts < now + 5 * 60_000 && p.ts > now - 7 * 86400_000) // rozumné časy
+      .sort((a, b) => a.ts - b.ts)
+      .slice(-3000);
+    const pois = [], boosted = [];
+    let applied = 0, last = null;
+    for (const p of pts) {
+      const r = applyPosition(player, p.lat, p.lon, p.ts);
+      pois.push(...r.pois); boosted.push(...r.boosted);
+      applied++; last = r;
     }
-    q.run('INSERT INTO presence (player_id, x, y, ts) VALUES (?, ?, ?, ?) ON CONFLICT(player_id) DO UPDATE SET x = ?, y = ?, ts = ?',
-      player.id, x, y, Date.now(), x, y, Date.now());
-    if (reveal) G.addDiscovery(G.effId(player), x, y, 150); // pochůzka odkrývá mapu
-    const boosted = G.applyPresenceBoosts(player);
-    const pois = checkPois(player, x, y);
-    send(res, 200, { ok: true, x: Math.round(x), y: Math.round(y), boosted, pois });
+    if (applied) G.pushRefresh(player.id);
+    send(res, 200, { ok: true, applied, pois, boosted, x: last?.x, y: last?.y });
   },
   'POST /api/order/move': async (req, res, player) => {
     const { armyId, destId, stance } = await readBody(req);

@@ -267,8 +267,14 @@ class TeslaMap {
 
   // mlha neprozkoumaného území — díry podle objevených kruhů
   _drawFog() {
-    const circles = this.state?.discovery;
-    if (!circles || !circles.length) return;
+    let circles = this.state?.discovery || [];
+    // offline nasbírané body: odkrývej lokálně už teď (server je započítá po synchronizaci)
+    if (this.localReveal?.length && this.data) {
+      const lat0 = this.data.layers?.center?.lat ?? 49.0987, lon0 = this.data.layers?.center?.lon ?? 14.0884;
+      const mlon = 111320 * Math.cos(lat0 * Math.PI / 180);
+      circles = circles.concat(this.localReveal.map((p) => ({ x: (p.lon - lon0) * mlon, y: (p.lat - lat0) * 110574, r: 150 })));
+    }
+    if (!circles.length) return;
     const dpr = devicePixelRatio || 1;
     if (!this._fogCanvas) this._fogCanvas = document.createElement('canvas');
     const f = this._fogCanvas;

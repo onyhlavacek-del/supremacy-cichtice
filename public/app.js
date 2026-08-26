@@ -83,7 +83,8 @@ async function loadMapData() {
   map.centerOn(0, 0, 0.9);
 }
 async function refreshState() {
-  const r = await fetch('/api/state');
+  let r;
+  try { r = await fetch('/api/state'); } catch { return false; } // offline
   if (r.status === 401) return false;
   STATE = await r.json();
   ME = STATE.me;
@@ -137,16 +138,73 @@ document.addEventListener('visibilitychange', () => {
 });
 
 let gpsWatch = null;
+
+// ---------- offline záznam trasy (bez dat GPS funguje, jen se nedá odeslat) ----------
+const GPS_QUEUE_KEY = 'supGpsQueue';
+function gpsQueue() { try { return JSON.parse(localStorage.getItem(GPS_QUEUE_KEY) || '[]'); } catch { return []; } }
+function gpsQueueSave(qq) { try { localStorage.setItem(GPS_QUEUE_KEY, JSON.stringify(qq.slice(-3000))); } catch { /* plno */ } }
+function gpsEnqueue(pt) {
+  const qq = gpsQueue();
+  const last = qq[qq.length - 1];
+  // šetři místo: nový bod jen když se pohnul ~15 m nebo uplynulo 45 s
+  if (last) {
+    const dm = Math.hypot((pt.lat - last.lat) * 110574, (pt.lon - last.lon) * 72900);
+    if (dm < 15 && pt.ts - last.ts < 45_000) return;
+  }
+  qq.push(pt);
+  gpsQueueSave(qq);
+  updateOfflineBadge();
+  map.localReveal = qq; // mlha se odkrývá i offline (lokálně, do synchronizace)
+  map.draw();
+}
+let flushing = false;
+async function gpsFlush() {
+  const qq = gpsQueue();
+  if (!qq.length || flushing || !navigator.onLine) return;
+  flushing = true;
+  try {
+    const r = await fetch('/api/positions/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points: qq }) });
+    if (r.ok) {
+      const d = await r.json();
+      gpsQueueSave([]);
+      map.localReveal = [];
+      toast(`Nahrána offline trasa: ${d.applied} bodů${d.pois?.length ? `, objeveno: ${d.pois.length}` : ''}.`);
+      refreshState();
+    }
+  } catch { /* stále offline — zkusíme příště */ }
+  flushing = false;
+  updateOfflineBadge();
+}
+function updateOfflineBadge() {
+  const el = $('#offline-badge');
+  if (!el) return;
+  const n = gpsQueue().length;
+  const off = !navigator.onLine;
+  el.classList.toggle('hidden', !off && n === 0);
+  el.textContent = off ? `Offline · trasa se ukládá (${n})` : `Odesílám uloženou trasu (${n})…`;
+}
+addEventListener('online', () => { updateOfflineBadge(); gpsFlush(); });
+addEventListener('offline', updateOfflineBadge);
+
 function startGps() {
   if (!navigator.geolocation || gpsWatch) return;
+  map.localReveal = gpsQueue();
+  updateOfflineBadge();
+  gpsFlush();
   gpsWatch = navigator.geolocation.watchPosition(async (pos) => {
     const { latitude, longitude } = pos.coords;
-    const r = await api('/api/position', { lat: latitude, lon: longitude });
-    if (r.ok) {
-      map.gps = [r.x, r.y];
-      map.draw();
+    const pt = { lat: latitude, lon: longitude, ts: Date.now() };
+    if (!navigator.onLine) { gpsEnqueue(pt); return; }
+    if (gpsQueue().length) await gpsFlush();
+    try {
+      const r = await fetch('/api/position', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pt) });
+      if (!r.ok) throw new Error('http');
+      const d = await r.json();
+      if (d.ok) { map.gps = [d.x, d.y]; map.draw(); }
+    } catch {
+      gpsEnqueue(pt); // síť selhala (např. slabý signál) — ulož a pošli později
     }
-  }, () => { /* zamítnnuto */ }, { enableHighAccuracy: true, maximumAge: 20_000, timeout: 15_000 });
+  }, () => { /* zamítnuto */ }, { enableHighAccuracy: true, maximumAge: 20_000, timeout: 15_000 });
 }
 
 // ---------- horní lišta ----------
@@ -1022,7 +1080,7 @@ function showTownTrade(town) {
 const TUTORIAL = [
   { t: 'Vítej v Supremacy Čichtice', x: 'Hraje se na skutečné mapě vesnice. Tvůj dům je tvoje hlavní město — produkuje surovinu a daně. Cíl: ovládnout co největší část Čichtic. Vše ostatní ti vysvětlí následující karty.' },
   { t: 'Mapa a území', x: 'Každý dům produkuje jednu ze 7 surovin + peníze z daní. Pole, louky, lesy a rybníky jsou bonusová území — na startu nikomu nepatří a kdo je obsadí první (dojde tam jeho armáda), ten je má. Ťukni na území a uvidíš, co vyrábí.' },
-  { t: 'Mlha a objevování', x: 'Mapa je zpočátku zahalená — vidíš jen okolí svého domu. Odkrýváš ji CHŮZÍ s otevřenou aplikací (poloha musí být povolená). Zdolaný kopec odkryje velký kruh okolí. Z auta se mapa neodkrývá — hlídá se tempo.' },
+  { t: 'Mlha a objevování', x: 'Mapa je zpočátku zahalená — vidíš jen okolí svého domu. Odkrýváš ji CHŮZÍ s otevřenou aplikací (poloha musí být povolená). Zdolaný kopec odkryje velký kruh okolí. Z auta se mapa neodkrývá — hlídá se tempo. BEZ DAT to jde taky: appka trasu uloží do telefonu a až budeš na Wi-Fi, sama ji nahraje — mlha, kopce i města se započítají zpětně. Výpravu jen zapni ještě doma, dokud máš internet.' },
   { t: 'Vojsko', x: 'Pěchota se u tvých domů verbuje sama (rychleji s kasárnami). Lepší jednotky odemkneš vzděláním — kurzy se zapisují FYZICKY u školy (čp. 91). Armádu pošleš ťuknutím na ni → Přesun/Útok → cíl. Pochody jsou pomalé — když jdeš fyzicky s vojáky nebo dojdeš do cíle, jdou 4× rychleji!' },
   { t: 'Boj', x: 'Bitva probíhá v kolech po 20 minutách. Sílu ovlivňuje morálka, počet a typ jednotek; obráncům pomáhá pevnost (−poškození). Když na tebe někdo útočí, přijde ti oznámení — pošli posily, dokud bitva běží. Rozkaz jde zrušit, armáda se vrátí do posledního uzlu.' },
   { t: 'Výpravy (mini-Strava)', x: 'V záložce Výpravy zapni „Jdu pěšky" nebo „Jedu na kole" a vyraž na kopec či do města. Na místě dostaneš odměnu podle REÁLNĚ ušlé vzdálenosti — autem to nejde ošidit. Kopce dávají suroviny a vojáky, města odemykají obchod. Za 3/10/25 kopců jsou odznaky s penězi.' },
