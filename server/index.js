@@ -18,6 +18,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
 const PORT = process.env.PORT || 8080;
 
+const ADMIN_NAMES = (process.env.ADMIN_NAMES || 'Ondra H').split(',').map((x) => x.trim());
+const isAdmin = (player) => player.id === 1 || ADMIN_NAMES.includes(player.name);
+
 const COLORS = ['#2E7D32', '#C62828', '#1565C0', '#EF6C00', '#6A1B9A', '#00838F', '#AD1457', '#4E342E', '#33691E', '#283593', '#B8860B', '#37474F'];
 
 // ---------- pomocníci ----------
@@ -341,7 +344,7 @@ function snapshot(player) {
       resources: G.resOf(pid), ...((b) => ({ balances: b.net, resFlow: { prod: b.prod, cons: b.cons, src: b.src } }))(balances(pid)),
       maxMorale: G.playerById(pid).max_morale,
       siblingWith: player.sibling_with, siblingUntil: player.sibling_until,
-      isAdmin: player.id === 1,
+      isAdmin: isAdmin(player),
     },
     players, provinces: provs, armies: myArmies, movingForeign,
     discovery: circles.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y), r: Math.round(c.r) })),
@@ -849,8 +852,53 @@ const routes = {
     q.run('DELETE FROM alliance_members WHERE player_id = ?', pid);
     send(res, 200, { ok: true });
   },
+  // ---------- admin konzole ----------
+  'GET /api/admin/overview': (req, res, player) => {
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
+    const players = q.all('SELECT id, name, home_id, created, team_with, education FROM players ORDER BY id').map((p) => {
+      const home = G.provinces.get(p.home_id);
+      const pres = q.get('SELECT ts FROM presence WHERE player_id = ?', p.id);
+      const rs = G.resOf(p.id);
+      return {
+        id: p.id, name: p.name, teamWith: p.team_with, education: p.education,
+        home: home ? home.name : (p.team_with ? 'tým' : '?'),
+        provinces: q.get('SELECT COUNT(*) AS n FROM province_state WHERE owner_id = ?', p.id).n,
+        units: q.all('SELECT units FROM armies WHERE owner_id = ?', p.id).reduce((a, r) => a + G.armySize(JSON.parse(r.units)), 0),
+        money: Math.round(rs.money || 0),
+        created: p.created, lastSeen: pres ? pres.ts : null,
+        sessions: q.get('SELECT COUNT(*) AS n FROM sessions WHERE player_id = ?', p.id).n,
+      };
+    });
+    send(res, 200, {
+      players,
+      events: q.all('SELECT ts, type, text, player_id AS playerId FROM events ORDER BY id DESC LIMIT 40'),
+      battles: q.all('SELECT province_id AS provinceId, started FROM battles').map((b) => ({ ...b, name: G.provinces.get(b.provinceId)?.name })),
+      backupLog: backupLog.slice(-15),
+      boot: new Date(BOOT_TS).toISOString(),
+      gameStart: +metaGet('game_start', 0),
+    });
+  },
+  'POST /api/admin/delete-player': async (req, res, player) => {
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
+    const { playerId } = await readBody(req);
+    const pid = +playerId;
+    const target = G.playerById(pid);
+    if (!target) return send(res, 400, { error: 'Hráč neexistuje.' });
+    if (pid === player.id) return send(res, 400, { error: 'Sám sebe nesmažeš.' });
+    q.run('UPDATE province_state SET owner_id = NULL, morale = 60, upgrades = NULL, captured_ts = NULL, build_kind = NULL, build_until = NULL, unit_kind = NULL, unit_until = NULL WHERE owner_id = ?', pid);
+    for (const [t, c] of [['armies', 'owner_id'], ['resources', 'player_id'], ['sessions', 'player_id'], ['presence', 'player_id'], ['discovery', 'player_id'], ['trips', 'player_id'], ['visits', 'player_id'], ['badges', 'player_id'], ['shops', 'player_id'], ['alliance_members', 'player_id'], ['alliance_invites', 'player_id'], ['chat', 'player_id']]) {
+      q.run(`DELETE FROM ${t} WHERE ${c} = ?`, pid);
+    }
+    q.run('DELETE FROM trades WHERE from_id = ? OR to_id = ?', pid, pid);
+    q.run('DELETE FROM pacts WHERE a = ? OR b = ?', pid, pid);
+    q.run('UPDATE players SET team_with = NULL WHERE team_with = ?', pid);
+    q.run('DELETE FROM players WHERE id = ?', pid);
+    G.notify(null, 'admin', `Admin odstranil hráče ${target.name}.`);
+    G.pushRefresh();
+    send(res, 200, { ok: true });
+  },
   'POST /api/admin/school': async (req, res, player) => {
-    if (player.id !== 1) return send(res, 403, { error: 'Jen admin.' });
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
     const { lat, lon } = await readBody(req);
     const [x, y] = G.projLL(lat, lon);
     metaSet('school_x', x); metaSet('school_y', y);
@@ -858,7 +906,7 @@ const routes = {
     send(res, 200, { ok: true });
   },
   'POST /api/admin/give': async (req, res, player) => {
-    if (player.id !== 1) return send(res, 403, { error: 'Jen admin.' });
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
     const { playerId, resName, amount } = await readBody(req);
     G.addRes(+playerId, resName, +amount);
     send(res, 200, { ok: true });

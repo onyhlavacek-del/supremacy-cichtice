@@ -969,6 +969,7 @@ function renderEmpire() {
   for (const e of STATE.events.slice(0, 25)) {
     html += `<div class="row"><span style="font-size:13px">${e.text}</span><span class="meta">${new Date(e.ts).toLocaleTimeString('cs', { hour: '2-digit', minute: '2-digit' })}</span></div>`;
   }
+  if (ME.isAdmin) html += `<button class="btn" data-act="admin" style="margin-top:12px">Admin konzole</button>`;
   html += `<div class="btn-row" style="margin-top:14px">
     <button class="btn ghost small" data-act="tutorial">Tutoriál</button>
     <button class="btn ghost small" data-act="fullscreen">Celá obrazovka</button>
@@ -1024,6 +1025,22 @@ function bindSheetActions(root) {
       if (act === 'gototrade') { closeDrawer(); activeTab = 'trade'; updateTabs(); renderSheet(); }
       if (act === 'logout') { await api('/api/logout', {}); location.reload(); }
       if (act === 'tutorial') showTutorial(0);
+      if (act === 'admin') renderAdmin();
+      if (act === 'admin-refresh') renderAdmin();
+      if (act === 'tab-empire') { activeTab = 'empire'; updateTabs(); renderSheet(); }
+      if (act === 'admin-delete') {
+        if (confirm(`Opravdu smazat hráče ${el.dataset.name}? Uvolní se jeho území, armády i vše ostatní. Nejde vrátit.`)) {
+          const r = await api('/api/admin/delete-player', { playerId: +el.dataset.id });
+          if (r.ok) { toast('Hráč smazán.'); renderAdmin(); }
+        }
+      }
+      if (act === 'admin-give') {
+        const amount = prompt(`Kolik surovin (každé) přidat hráči ${el.dataset.name}?`, '1000');
+        if (amount > 0) {
+          for (const r of ['money', 'grain', 'fish', 'lumber', 'iron', 'coal', 'oil', 'gas']) await api('/api/admin/give', { playerId: +el.dataset.id, resName: r, amount: +amount });
+          toast('Přidáno.'); renderAdmin();
+        }
+      }
       if (act === 'fullscreen') {
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen?.().catch(() => toast('Celá obrazovka tu nejde — přidej si appku na plochu.'));
@@ -1074,6 +1091,35 @@ function showTownTrade(town) {
       if (act === 'buyshop') { const r = await api('/api/shop/buy', { shopId: +el.dataset.shop, amount: +$(`#tb-n-${el.dataset.shop}`).value }); if (r.ok) { toast('Koupeno.'); refreshState(); } }
     };
   });
+}
+
+// ---------- admin konzole (jen správce) ----------
+async function renderAdmin() {
+  const d = await api('/api/admin/overview');
+  if (!d.players) return;
+  const fmtT = (ts) => ts ? new Date(ts).toLocaleString('cs', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  let html = `<h2>Admin konzole</h2>
+    <div class="sub">server běží od ${fmtT(Date.parse(d.boot))} · partie od ${fmtT(d.gameStart)}</div>
+    <button class="btn ghost small" data-act="admin-refresh">Obnovit</button>
+    <h3>Hráči (${d.players.length})</h3>`;
+  for (const p of d.players) {
+    html += `<div class="prod"><div style="flex:1"><b>#${p.id} ${p.name}</b>${p.teamWith ? ` <span class="meta" style="display:inline">(tým s #${p.teamWith})</span>` : ''}
+      <span class="meta">${p.home} · ${p.provinces} území · ${p.units} vojáků · ${p.money} peněz · vzdělání ${p.education}</span>
+      <span class="meta">registrace ${fmtT(p.created)} · naposledy GPS ${fmtT(p.lastSeen)} · přihlášení: ${p.sessions}</span></div>
+      <div class="prod-right" style="flex-direction:column;gap:4px">
+        <button class="btn small ghost" data-act="admin-give" data-id="${p.id}" data-name="${p.name}">+ suroviny</button>
+        ${p.id !== ME.id ? `<button class="btn small danger" data-act="admin-delete" data-id="${p.id}" data-name="${p.name}">Smazat</button>` : ''}
+      </div></div>`;
+  }
+  if (d.battles.length) { html += '<h3>Bitvy</h3>'; for (const b of d.battles) html += `<div class="row"><span>${b.name}</span><span class="meta">od ${fmtT(b.started)}</span></div>`; }
+  html += '<h3>Poslední události (všichni)</h3>';
+  for (const e of d.events) html += `<div class="row"><span style="font-size:12.5px">${e.text}</span><span class="meta">${fmtT(e.ts)}</span></div>`;
+  html += '<h3>Deník záloh</h3>';
+  for (const l of d.backupLog.slice().reverse()) html += `<div class="row"><span style="font-size:11.5px;font-family:monospace">${l.replace(/</g, '&lt;')}</span></div>`;
+  html += `<button class="btn ghost" data-act="tab-empire" style="margin-top:12px">Zpět</button>`;
+  $('#sheet-content').innerHTML = html;
+  $('#sheet').classList.remove('hidden');
+  bindSheetActions($('#sheet-content'));
 }
 
 // ---------- tutoriál ----------
