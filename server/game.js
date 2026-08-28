@@ -314,7 +314,7 @@ function sizeFactor(kind, n) {
   return eff;
 }
 // síla strany za kolo; obránce používá DEF, útočník ATK (jako v originále)
-function sidePower(armies, useDef) {
+function sidePower(armies, useDef, effortMult = null) {
   let power = 0;
   for (const a of armies) {
     const units = JSON.parse(a.units);
@@ -325,9 +325,54 @@ function sidePower(armies, useDef) {
     }
     const mf = (a.morale / 100) * 0.45 + C.COMBAT.moraleFactorMin;
     const rand = 1 + (Math.random() * 2 - 1) * C.COMBAT.randomSpread;
-    power += base * mf * rand;
+    power += base * mf * rand * (effortMult ? effortMult(a.owner_id) : 1);
   }
   return power;
+}
+
+// válečné úsilí: reálný pohyb hráče BĚHEM bitvy (okno 3 h) dává bonusy.
+// km chůze = +5 % síla (max +25), nový kopec = +1 pěšák, nové město = +10 % síla (max +20)
+function updateWarEffort(b, prov, attackers, defenders, now) {
+  const boosts = JSON.parse(b.boosts || '{}');
+  const winEnd = Math.min(now, b.started + C.WAR_EFFORT.windowMs);
+  const inBattle = [...attackers, ...defenders];
+  for (const pid of new Set(inBattle.map((a) => a.owner_id))) {
+    const eff = boosts[pid] || (boosts[pid] = { walkM: 0, pois: [], powerTowns: 0, soldiers: 0 });
+    // tým: pomáhá pohyb obou členů
+    const members = [pid, ...q.all('SELECT id FROM players WHERE team_with = ?', pid).map((r) => r.id)];
+    const ph = members.map(() => '?').join(',');
+    const m = q.get(`SELECT COALESCE(SUM(m), 0) AS m FROM walk_log WHERE player_id IN (${ph}) AND ts BETWEEN ? AND ?`, ...members, b.started, winEnd).m;
+    const kmNew = Math.min(C.WAR_EFFORT.walkPctMax / C.WAR_EFFORT.pctPerKm, Math.floor(m / 1000)) - Math.min(C.WAR_EFFORT.walkPctMax / C.WAR_EFFORT.pctPerKm, Math.floor(eff.walkM / 1000));
+    if (kmNew > 0) notify(pid, 'battle', `Válečné úsilí: nachozené km = +${kmNew * C.WAR_EFFORT.pctPerKm} % síla v bitvě o ${prov.name}.`);
+    eff.walkM = m;
+    for (const v of q.all(`SELECT DISTINCT poi_key FROM visits WHERE player_id IN (${ph}) AND ts BETWEEN ? AND ?`, ...members, b.started, winEnd)) {
+      if (eff.pois.includes(v.poi_key)) continue;
+      eff.pois.push(v.poi_key);
+      if (v.poi_key.startsWith('town:')) {
+        if (eff.powerTowns < C.WAR_EFFORT.townPctMax) {
+          eff.powerTowns += C.WAR_EFFORT.townPct;
+          notify(pid, 'battle', `Válečné úsilí: objevené město = +${C.WAR_EFFORT.townPct} % síla v bitvě o ${prov.name}.`);
+        }
+      } else {
+        const mine = inBattle.filter((a) => a.owner_id === pid);
+        if (mine.length) {
+          const tgt = mine.sort((a, a2) => armySize(JSON.parse(a2.units)) - armySize(JSON.parse(a.units)))[0];
+          const u = JSON.parse(tgt.units);
+          u.infantry = (u.infantry || 0) + 1;
+          q.run('UPDATE armies SET units = ? WHERE id = ?', JSON.stringify(u), tgt.id);
+          eff.soldiers = (eff.soldiers || 0) + 1;
+          notify(pid, 'battle', `Válečné úsilí: zdolaný kopec = +1 pěšák do bitvy o ${prov.name}.`);
+        }
+      }
+    }
+  }
+  q.run('UPDATE battles SET boosts = ? WHERE id = ?', JSON.stringify(boosts), b.id);
+  return (pid) => {
+    const e = boosts[pid];
+    if (!e) return 1;
+    const walkPct = Math.min(C.WAR_EFFORT.walkPctMax, Math.floor((e.walkM || 0) / 1000) * C.WAR_EFFORT.pctPerKm);
+    return 1 + (walkPct + (e.powerTowns || 0)) / 100;
+  };
 }
 const ROUND_SCALE = 0.9; // kolik síly se přetaví ve ztráty za jedno kolo (6v6 pěchoty ≈ 4–6 kol)
 
@@ -470,8 +515,11 @@ function runBattles(now) {
       continue;
     }
     const fort = st.fortress ? C.FORTRESS[st.fortress].dmgReduction : 0;
-    const atkPower = sidePower(attackers, false);
-    const defPower = sidePower(defenders, true);
+    const effortMult = updateWarEffort(b, prov, attackers, defenders, now);
+    // po úsilí znovu načti strany (kopec mohl přidat pěšáka)
+    const fresh = battleSides(b.province_id);
+    const atkPower = sidePower(fresh.attackers, false, effortMult);
+    const defPower = sidePower(fresh.defenders, true, effortMult);
     const lossDef = applyDamage(defenders, atkPower * (1 - fort) * ROUND_SCALE);
     const lossAtk = applyDamage(attackers, defPower * ROUND_SCALE);
     cleanupEmptyArmies();

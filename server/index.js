@@ -361,7 +361,17 @@ function snapshot(player) {
     },
     players, provinces: provs, armies: myArmies, movingForeign,
     discovery: circles.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y), r: Math.round(c.r) })),
-    battles: q.all('SELECT province_id AS provinceId, started FROM battles')
+    battles: q.all('SELECT province_id AS provinceId, started, boosts FROM battles').map((b) => {
+      const eff = (JSON.parse(b.boosts || '{}'))[pid];
+      return {
+        provinceId: b.provinceId, started: b.started,
+        effortEnds: b.started + C.WAR_EFFORT.windowMs,
+        myEffort: eff ? {
+          pct: Math.min(C.WAR_EFFORT.walkPctMax, Math.floor((eff.walkM || 0) / 1000) * C.WAR_EFFORT.pctPerKm) + (eff.powerTowns || 0),
+          km: Math.round((eff.walkM || 0) / 100) / 10, soldiers: eff.soldiers || 0,
+        } : null,
+      };
+    })
       .filter((b) => { const p = G.provinces.get(b.provinceId); return p && G.isDiscovered(circles, p.c[0], p.c[1]); })
       .map((b) => {
         const s = G.battleSides(b.provinceId);
@@ -467,8 +477,11 @@ function applyPosition(player, lat, lon, ts) {
   if (prev && ts > prev.ts) {
     const dtH = (ts - prev.ts) / 3600_000;
     if (dtH > 0.001 && dtH < 0.17) {
-      const kmh = (Math.hypot(x - prev.x, y - prev.y) / 1000) / dtH;
+      const dist = Math.hypot(x - prev.x, y - prev.y);
+      const kmh = (dist / 1000) / dtH;
       if (kmh > 30) reveal = false; // auto/autobus neodkrývá mlhu
+      // pěší tempo se počítá do válečného úsilí (pomáhá v bitvách)
+      if (kmh <= C.WAR_EFFORT.walkMaxKmh && dist > 5) q.run('INSERT INTO walk_log (player_id, ts, m) VALUES (?, ?, ?)', player.id, ts, dist);
     }
   }
   // přítomnost ukládej jen pokud je bod novější než dosavadní (dávka může být starší)

@@ -178,6 +178,16 @@ export const upgradeCost = (def, targetLvl) => {
 };
 
 // Aliance
+// válečné úsilí: reálný pohyb BĚHEM bitvy pomáhá v boji (okno od začátku bitvy)
+export const WAR_EFFORT = {
+  windowMs: 3 * 3600_000,  // jen první 3 h bitvy
+  pctPerKm: 5,             // +5 % síla za každý ušlý km
+  walkPctMax: 25,          // strop bonusu za chůzi
+  townPct: 10,             // nově objevené město = +10 % síla
+  townPctMax: 20,          // strop za města
+  walkMaxKmh: 8,           // rychlejší pohyb se nepočítá (kolo/auto)
+};
+
 export const ALLIANCE_MAX_MEMBERS = 3;     // rozšířeno na 3 (28. 8.)
 
 // Dobytí hlavního města (viz sekce 2)

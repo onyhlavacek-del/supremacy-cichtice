@@ -83,6 +83,14 @@ CREATE TABLE IF NOT EXISTS battles (
   started INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS walk_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id INTEGER NOT NULL,
+  ts INTEGER NOT NULL,
+  m REAL NOT NULL                  -- ušlé metry (jen pěší tempo)
+);
+CREATE INDEX IF NOT EXISTS idx_walklog ON walk_log (player_id, ts);
+
 CREATE TABLE IF NOT EXISTS presence (
   player_id INTEGER PRIMARY KEY,
   x REAL, y REAL,
@@ -204,6 +212,8 @@ try { db.exec('ALTER TABLE chat ADD COLUMN to_id INTEGER'); } catch { /* sloupec
 // migrace: znak a barva aliance
 try { db.exec("ALTER TABLE alliances ADD COLUMN symbol TEXT DEFAULT 'swords'"); } catch { /* už existuje */ }
 try { db.exec("ALTER TABLE alliances ADD COLUMN bg TEXT DEFAULT '#1565C0'"); } catch { /* už existuje */ }
+// migrace: válečné úsilí v bitvách
+try { db.exec("ALTER TABLE battles ADD COLUMN boosts TEXT DEFAULT '{}'"); } catch { /* už existuje */ }
 // migrace: vylepšení přírodních území
 try { db.exec("ALTER TABLE province_state ADD COLUMN upgrades TEXT DEFAULT '{}'"); } catch { /* sloupec už existuje */ }
 
