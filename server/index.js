@@ -455,16 +455,19 @@ function checkPois(player, x, y, ts = ts) {
           const bonus = 1 + effKm / 5 + (poi.ele ? Math.max(0, poi.ele - 450) / 300 : 0);
           const amounts = {};
           const kinds = ['grain', 'lumber', 'iron', 'coal', 'oil', 'gas'];
-          const res1 = kinds[Math.floor(Math.random() * kinds.length)];
+          // "kasino" je fér: vždycky padne surovina, které máš nejméně
+          const stocks = G.resOf(pid);
+          const res1 = kinds.slice().sort((a, b) => (stocks[a] || 0) - (stocks[b] || 0))[0];
           amounts[res1] = Math.round(C.HILL_REWARD_BASE * bonus);
           G.addRes(pid, res1, amounts[res1]);
-          let soldierTxt = '';
+          let soldierTxt = '', nSold = 0;
           if (Math.random() < C.HILL_SOLDIER_CHANCE) {
-            const n = 1 + Math.floor(Math.random() * 3);
-            G.addUnits(pid, G.playerById(pid).home_id, 'infantry', n);
-            soldierTxt = ` a ${n}× pěchota (dorazí domů)`;
+            nSold = 1 + Math.floor(Math.random() * 3);
+            G.addUnits(pid, G.playerById(pid).home_id, 'infantry', nSold);
+            soldierTxt = ` a ${nSold}× pěchota (dorazí domů)`;
           }
           rewardText = `+${amounts[res1]} ${C.RES_LABEL[res1]}${soldierTxt} (ušlé ${walkedKm.toFixed(1)} km)`;
+          G.pushLive(pid, { type: 'hillwin', name: poi.name, res: res1, amount: amounts[res1], soldiers: nSold });
         } else {
           const r = Math.round(C.TOWN_REWARD_BASE * (1 + effKm / 20));
           G.addRes(pid, 'money', r);

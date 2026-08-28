@@ -332,6 +332,7 @@ export function notify(playerId, type, text) {
   pushFn(playerId, { type, text, ts: Date.now() });
 }
 export function pushRefresh(playerId = null) { pushFn(playerId, { type: 'refresh' }); }
+export function pushLive(playerId, payload) { pushFn(playerId, payload); } // libovolná SSE zpráva hráči
 
 // ---------- hráči, suroviny ----------
 export const effId = (player) => player.team_with || player.id; // tým sdílí říši
