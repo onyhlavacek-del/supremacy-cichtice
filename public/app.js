@@ -1295,22 +1295,25 @@ function celebrateHill(d) {
     else ctx2.clearRect(0, 0, cv.width, cv.height);
   };
   requestAnimationFrame(drawConfetti);
-  // dramaturgie: 2 s napětí -> dlouhé točení s dojezdem o POLÍČKO DŘÍV ->
-  // zastavení, chvilka ticha -> a při nejmenší rychlosti to ještě přepadne na výhru
+  // dramaturgie: 2 s napětí, pak JEDEN souvislý dojezd (6 s) — konec je tak
+  // pomalý, že poslední políčko doleze plíživě, ale bez zastavení a poskoku
   setTimeout(() => {
-    strip.style.transition = 'transform 3.8s cubic-bezier(0.1, 0.65, 0.1, 1)';
-    strip.style.transform = `translateY(-${23 * 96}px)`; // o jedno políčko před výhrou
+    const DUR = 6000, TOTAL = 24 * 96;
+    const t0s = performance.now();
+    const spin = (t) => {
+      const tt = Math.min(1, (t - t0s) / DUR);
+      const p2 = 1 - Math.pow(1 - tt, 2.2); // dlouhý plíživý doběh (~1,4 s na poslední políčko)
+      strip.style.transform = `translateY(-${(p2 * TOTAL).toFixed(1)}px)`;
+      if (tt < 1) requestAnimationFrame(spin);
+    };
+    requestAnimationFrame(spin);
   }, 2000);
-  setTimeout(() => {
-    strip.style.transition = 'transform 0.65s cubic-bezier(0.34, 1.25, 0.64, 1)';
-    strip.style.transform = `translateY(-${24 * 96}px)`; // finální přepadnutí
-  }, 6400);
   setTimeout(() => {
     $('#hw-result').innerHTML = `+${d.amount} ${RES_LABEL[d.res]}${d.soldiers ? `<span class="hw-sub">a ${d.soldiers}× pěchota dorazí domů</span>` : ''}`;
     $('#hw-close').classList.remove('hidden');
-  }, 7200);
+  }, 8200);
   clearTimeout(hwTimer);
-  hwTimer = setTimeout(() => ov.classList.add('hidden'), 14000);
+  hwTimer = setTimeout(() => ov.classList.add('hidden'), 15000);
 }
 $('#hw-close').onclick = () => { clearTimeout(hwTimer); $('#hillwin').classList.add('hidden'); };
 
