@@ -373,6 +373,57 @@ export function battleSides(provinceId) {
   return { st, defenders, attackers };
 }
 
+// ---------- body do žebříčku ----------
+// dům 10 b (+2 dvojité ložisko), příroda 5 b; jednotky dle síly (pěšák 1 b);
+// objevená mapa 1 b / 3 ha; kopec 5 b, město 8 b; vzdělání 10 b / úroveň
+const scoreAreaCache = new Map(); // playerId -> { key, ha }
+export function scoreOf(playerId) {
+  const parts = { territory: 0, army: 0, map: 0, trips: 0, edu: 0 };
+  const counts = { provinces: 0, units: 0, ha: 0, visits: 0, eduLvl: 0 };
+  for (const st of q.all('SELECT id FROM province_state WHERE owner_id = ?', playerId)) {
+    const prov = provinces.get(st.id);
+    if (!prov) continue;
+    counts.provinces++;
+    parts.territory += (prov.kind === 'house' ? 10 : 5) + (prov.double ? 2 : 0);
+  }
+  for (const a of q.all('SELECT units FROM armies WHERE owner_id = ?', playerId)) {
+    for (const [k, n] of Object.entries(JSON.parse(a.units))) {
+      if (n > 0) { counts.units += n; parts.army += ((C.UNITS[k]?.atk || 1.5) / 3) * n; } // pěšák 0,5 b — vojsko má vážit míň než území
+    }
+  }
+  // tým (sourozenci se společnou říší): mapa, výpravy a vzdělání za oba členy
+  const members = [playerId, ...q.all('SELECT id FROM players WHERE team_with = ?', playerId).map((r) => r.id)];
+  const ph = members.map(() => '?').join(',');
+  const rows = q.all(`SELECT x, y, r FROM discovery WHERE player_id IN (${ph})`, ...members);
+  let cached = scoreAreaCache.get(playerId);
+  if (!cached || cached.key !== rows.length) {
+    // sjednocení kruhů přes mřížku 60 m — bez dvojího počítání překryvů
+    const cells = new Set();
+    const CS = 60;
+    for (const c of rows) {
+      const n = Math.ceil(c.r / CS);
+      const cx = Math.round(c.x / CS), cy = Math.round(c.y / CS);
+      for (let dx = -n; dx <= n; dx++) {
+        for (let dy = -n; dy <= n; dy++) {
+          if (dx * dx + dy * dy <= n * n) cells.add(`${cx + dx}:${cy + dy}`);
+        }
+      }
+    }
+    cached = { key: rows.length, ha: Math.round(cells.size * CS * CS / 10000) };
+    scoreAreaCache.set(playerId, cached);
+  }
+  parts.map = Math.round(cached.ha / 3);
+  counts.ha = cached.ha;
+  const seenPoi = new Set();
+  for (const v of q.all(`SELECT DISTINCT poi_key FROM visits WHERE player_id IN (${ph})`, ...members)) seenPoi.add(v.poi_key);
+  for (const key of seenPoi) parts.trips += key.startsWith('town:') ? 8 : 5;
+  counts.visits = seenPoi.size;
+  counts.eduLvl = Math.max(...members.map((m) => q.get('SELECT education FROM players WHERE id = ?', m)?.education || 0));
+  parts.edu = counts.eduLvl * 10;
+  parts.army = Math.round(parts.army);
+  return { total: parts.territory + parts.army + parts.map + parts.trips + parts.edu, ...parts, counts };
+}
+
 export function capture(provinceId, newOwnerId) {
   const st = q.get('SELECT * FROM province_state WHERE id = ?', provinceId);
   const prov = provinces.get(provinceId);

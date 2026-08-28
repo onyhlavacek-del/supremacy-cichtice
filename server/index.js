@@ -303,6 +303,7 @@ function snapshot(player) {
     provinceCount: q.get('SELECT COUNT(*) AS n FROM province_state WHERE owner_id = ?', p.id).n,
     unitCount: q.all('SELECT units FROM armies WHERE owner_id = ?', p.id)
       .reduce((s, a) => s + G.armySize(JSON.parse(a.units)), 0),
+    score: p.team_with ? null : G.scoreOf(p.id),
   }));
   const circles = G.discoveryCircles(pid);
   const provs = [];

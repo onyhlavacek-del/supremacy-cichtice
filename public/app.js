@@ -450,11 +450,21 @@ function renderDrawer() {
   let html = '';
   if (drawerTab === 'board') {
     const board = STATE.players.filter((p) => !p.teamWith)
-      .sort((a, b) => (b.provinceCount - a.provinceCount) || (b.unitCount - a.unitCount));
+      .sort((a, b) => (b.score?.total || 0) - (a.score?.total || 0));
     board.forEach((p, i) => {
-      html += `<div class="row"><span style="display:flex;align-items:center;gap:6px"><b>${i + 1}.</b> ${ownerDot(p.id)} ${p.display || p.name}${p.ally ? allyBanner(p.ally, 13) : ''}</span>
-        <span class="meta">${p.provinceCount} území · ${p.unitCount} vojáků</span></div>`;
+      const sc = p.score || { total: 0, counts: {} };
+      const c = sc.counts || {};
+      html += `<div class="row" style="align-items:flex-start"><span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><b>${i + 1}.</b> ${ownerDot(p.id)} ${p.display || p.name}${p.ally ? allyBanner(p.ally, 13) : ''}</span>
+        <b style="flex:none">${sc.total} b</b></div>
+      <div class="meta" style="margin:-4px 0 8px 22px;display:flex;flex-wrap:wrap;gap:2px 12px">
+        <span>dobyto: ${c.provinces || 0} (${sc.territory || 0} b)</span>
+        <span>vojáci: ${c.units || 0} (${sc.army || 0} b)</span>
+        <span>prozkoumáno: ${c.ha || 0} ha (${sc.map || 0} b)</span>
+        <span>výpravy: ${c.visits || 0} (${sc.trips || 0} b)</span>
+        <span>vzdělání: ${c.eduLvl || 0} (${sc.edu || 0} b)</span>
+      </div>`;
     });
+    html += `<p class="sub" style="margin-top:8px">Body: dům 10 (dvojité ložisko +2), příroda 5, voják dle síly (2 pěšáci = 1 b), objevená mapa 1 b / 3 ha, kopec 5, město 8, vzdělání 10 / úroveň.</p>`;
   } else if (drawerTab === 'chat') {
     // výběr příjemce (Všichni / soukromě)
     const sel = $('#chat-to');
@@ -1266,7 +1276,7 @@ function tourSteps() {
     { t: 'Výpravy = mini-Strava', x: 'V záložce Výpravy zapni „Jdu pěšky" nebo „Jedu na kole" a vyraž ven. Odměna je podle SKUTEČNĚ ušlé vzdálenosti. Kopce dávají suroviny a vojáky, města odemykají obchod. Za 3/10/25 zdolaných kopců jsou odznaky s penězi.', prep: () => { sheetArmy = null; map.selectedArmy = null; activeTab = 'trips'; updateTabs(); renderSheet(); }, el: '#sheet' },
     { t: 'Obchod', x: 'Obchoduješ přímo s ostatními („dám X za Y") nebo v objevených městech na NPC trhu — čím dál město, tím lepší kurz. Ve městě, kde fyzicky stojíš, si můžeš založit vlastní obchod, který pak sám vydělává.', prep: () => { activeTab = 'trade'; updateTabs(); renderSheet(); }, el: '#sheet' },
     { t: 'Vzdělání a lepší jednotky', x: 'Silnější jednotky než pěchota odemkneš VZDĚLÁNÍM. Do kurzu se zapisuješ FYZICKY u školy (čp. 91) — dojdi k ní a ťukni na ni. Vyšší vzdělání navíc zvyšuje strop morálky.', prep: () => { activeTab = 'map'; updateTabs(); renderSheet(); } },
-    { t: 'Menu: žebříček a diplomacie', x: 'Pod třemi čárkami je žebříček, společný i soukromý chat a diplomacie: MÍR (pakt o neútočení) a ALIANCE (max 3 hráči — sdílí mapu, nemůžou na sebe útočit a mají štít u jména).', el: '#menu-btn' },
+    { t: 'Menu: žebříček a diplomacie', x: 'Pod třemi čárkami je žebříček (vede se na BODY: území, vojsko, objevená mapa, výpravy, vzdělání), společný i soukromý chat a diplomacie: MÍR (pakt o neútočení) a ALIANCE (max 3 hráči — sdílí mapu, nemůžou na sebe útočit a mají štít u jména).', el: '#menu-btn' },
     { t: 'Obnovení a zpětná vazba', x: 'Šipka obnoví hru a sama pozná, když vyjde nová verze. A když něco nefunguje, máš nápad nebo dotaz — v záložce Říše je tlačítko Zpětná vazba, zpráva přijde rovnou Matějovi.', el: '#refresh-btn' },
     { t: 'A je to!', x: 'Teď víš všechno podstatné. Průvodce si kdykoli pustíš znovu: Říše → Tutoriál. Hodně štěstí — a hlavně choď ven, hra odměňuje pohyb!', prep: closePanels },
   ];
