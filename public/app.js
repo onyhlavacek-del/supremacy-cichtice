@@ -130,6 +130,7 @@ function connectSSE() {
       if (d.type === 'hello') return;
       if (d.type === 'refresh') { refreshState(); return; }
       if (d.type === 'hillwin') { celebrateHill(d); refreshState(); return; }
+      if (d.type === 'townwin') { celebrateTown(d); refreshState(); return; }
       if (d.text) toast(d.text);
       refreshState();
     } catch { /* ignore */ }
@@ -1250,6 +1251,60 @@ function showTownTrade(town) {
 
 // ---------- oslava zdolaného kopce: konfety + válec surovin ----------
 let hwTimer = null;
+function hwConfetti(ov) {
+  const cv = $('#hw-confetti');
+  cv.width = innerWidth; cv.height = innerHeight;
+  const ctx2 = cv.getContext('2d');
+  const COLS = ['#E74C3C', '#F1C40F', '#2ECC71', '#3498DB', '#9B59B6', '#E67E22'];
+  const parts = Array.from({ length: 140 }, () => ({
+    x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * 0.5,
+    vy: 2 + Math.random() * 3, vx: (Math.random() - 0.5) * 1.6,
+    rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
+    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+    c: COLS[Math.floor(Math.random() * COLS.length)],
+  }));
+  const t0 = performance.now();
+  const draw = (t) => {
+    if (ov.classList.contains('hidden')) return;
+    ctx2.clearRect(0, 0, cv.width, cv.height);
+    for (const p2 of parts) {
+      p2.y += p2.vy; p2.x += p2.vx + Math.sin((t / 400) + p2.rot) * 0.8; p2.rot += p2.vr;
+      if (p2.y > cv.height + 20) { p2.y = -20; p2.x = Math.random() * cv.width; }
+      ctx2.save();
+      ctx2.translate(p2.x, p2.y);
+      ctx2.rotate(p2.rot);
+      ctx2.fillStyle = p2.c;
+      ctx2.fillRect(-p2.w / 2, -p2.h / 2, p2.w, p2.h * Math.abs(Math.cos(t / 300 + p2.rot)));
+      ctx2.restore();
+    }
+    if (t - t0 < 8000) requestAnimationFrame(draw);
+    else ctx2.clearRect(0, 0, cv.width, cv.height);
+  };
+  requestAnimationFrame(draw);
+}
+// objevené město: konfety + mince (bez válce)
+function celebrateTown(d) {
+  const ov = $('#hillwin');
+  $('#hw-title').textContent = `Město objeveno — ${d.name}!`;
+  $('#hw-result').textContent = '';
+  $('#hw-close').classList.add('hidden');
+  const strip = $('#hw-strip');
+  strip.style.transition = 'none';
+  strip.style.transform = 'scale(0.2)';
+  strip.innerHTML = `<span>${RES_ICON.money}</span>`;
+  ov.classList.remove('hidden');
+  hwConfetti(ov);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    strip.style.transition = 'transform 0.7s cubic-bezier(0.34, 1.5, 0.64, 1)';
+    strip.style.transform = 'scale(1)';
+  }));
+  setTimeout(() => {
+    $('#hw-result').innerHTML = `+${d.money} peněz<span class="hw-sub">obchod ve městě odemčen</span>`;
+    $('#hw-close').classList.remove('hidden');
+  }, 1100);
+  clearTimeout(hwTimer);
+  hwTimer = setTimeout(() => ov.classList.add('hidden'), 9000);
+}
 function celebrateHill(d) {
   const KINDS = ['grain', 'lumber', 'iron', 'coal', 'oil', 'gas'];
   const ov = $('#hillwin');
@@ -1263,38 +1318,9 @@ function celebrateHill(d) {
   seq.push(d.res);
   strip.innerHTML = seq.map((k) => `<span>${RES_ICON[k]}</span>`).join('');
   strip.style.transition = 'none';
-  strip.style.transform = 'translateY(0)';
+  strip.style.transform = 'translateY(0) scale(1)';
   ov.classList.remove('hidden');
-  // konfety
-  const cv = $('#hw-confetti');
-  cv.width = innerWidth; cv.height = innerHeight;
-  const ctx2 = cv.getContext('2d');
-  const COLS = ['#E74C3C', '#F1C40F', '#2ECC71', '#3498DB', '#9B59B6', '#E67E22'];
-  const parts = Array.from({ length: 140 }, () => ({
-    x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * 0.5,
-    vy: 2 + Math.random() * 3, vx: (Math.random() - 0.5) * 1.6,
-    rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.25,
-    w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
-    c: COLS[Math.floor(Math.random() * COLS.length)],
-  }));
-  const t0 = performance.now();
-  const drawConfetti = (t) => {
-    if (ov.classList.contains('hidden')) return;
-    ctx2.clearRect(0, 0, cv.width, cv.height);
-    for (const p2 of parts) {
-      p2.y += p2.vy; p2.x += p2.vx + Math.sin((t / 400) + p2.rot) * 0.8; p2.rot += p2.vr;
-      if (p2.y > cv.height + 20) { p2.y = -20; p2.x = Math.random() * cv.width; }
-      ctx2.save();
-      ctx2.translate(p2.x, p2.y);
-      ctx2.rotate(p2.rot);
-      ctx2.fillStyle = p2.c;
-      ctx2.fillRect(-p2.w / 2, -p2.h / 2, p2.w, p2.h * Math.abs(Math.cos(t / 300 + p2.rot)));
-      ctx2.restore();
-    }
-    if (t - t0 < 8000) requestAnimationFrame(drawConfetti);
-    else ctx2.clearRect(0, 0, cv.width, cv.height);
-  };
-  requestAnimationFrame(drawConfetti);
+  hwConfetti(ov);
   // dramaturgie: 2 s napětí, pak JEDEN souvislý dojezd (6 s) — konec je tak
   // pomalý, že poslední políčko doleze plíživě, ale bez zastavení a poskoku
   setTimeout(() => {

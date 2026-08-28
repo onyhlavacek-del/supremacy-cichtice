@@ -472,6 +472,7 @@ function checkPois(player, x, y, ts = ts) {
           const r = Math.round(C.TOWN_REWARD_BASE * (1 + effKm / 20));
           G.addRes(pid, 'money', r);
           rewardText = `+${r} peněz, obchod odemčen (kurz ×${C.townPriceMult(poi.km).toFixed(1)})`;
+          G.pushLive(pid, { type: 'townwin', name: poi.name, money: r });
         }
       } else if (speed <= maxSpeed && effKm < 0.4) {
         rewardText = 'objeveno — ale ušel jsi míň než 400 m (auto?), bez odměny';
