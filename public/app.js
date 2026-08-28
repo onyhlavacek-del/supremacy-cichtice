@@ -401,10 +401,17 @@ function updateTabs() {
 let drawerTab = 'board';
 const allyPick = { symbol: 'swords', bg: '#1565C0' };
 let lastChatSeen = 0;
+let knownBoot = null;
 $('#refresh-btn').onclick = async () => {
   const el = $('#refresh-btn');
   el.style.transform = 'rotate(360deg)';
   await refreshState();
+  // nová verze hry na serveru? přenačti celou aplikaci
+  try {
+    const h = await (await fetch('/api/health')).json();
+    if (knownBoot && h.boot !== knownBoot) { toast('Nová verze hry — načítám…'); setTimeout(() => location.reload(), 600); return; }
+    knownBoot = h.boot;
+  } catch { /* offline */ }
   toast('Aktualizováno.');
   setTimeout(() => { el.style.transform = ''; }, 400);
 };
@@ -488,9 +495,9 @@ function renderDrawer() {
         <p class="sub" style="margin-top:8px">Znak aliance:</p>
         <div class="ally-pick" id="ally-symbols">${Object.keys(ALLY_SYMBOLS).map((k) => `<button data-sym="${k}" class="${k === allyPick.symbol ? 'on' : ''}" style="background:${allyPick.bg}" title="${ALLY_LABEL[k]}">${ALLY_SYMBOLS[k]}</button>`).join('')}</div>
         <div class="ally-pick" id="ally-colors">${['#1565C0', '#C62828', '#2E7D32', '#6A1B9A', '#EF6C00', '#37474F'].map((c) => `<button data-bg="${c}" class="${c === allyPick.bg ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
-        <button class="btn" data-act="allycreate">Založit alianci (max 2 členové)</button>`;
+        <button class="btn" data-act="allycreate">Založit alianci (max 3 členové)</button>`;
     }
-    html += `<p class="sub" style="margin-top:10px">Aliance = spojenci (sdílí mapu, nemůžou na sebe útočit). Mír = jen pakt o neútočení.</p>`;
+    html += `<p class="sub" style="margin-top:10px">Aliance (max 3) = spojenci: sdílí mapu, nemůžou na sebe útočit. Mír = jen pakt o neútočení.</p>`;
   }
   c.innerHTML = html;
   if (drawerTab === 'chat') c.scrollTop = c.scrollHeight;
@@ -1253,6 +1260,7 @@ async function enterGame() {
   $('#tabs').classList.remove('hidden');
   $('#menu-btn').classList.remove('hidden');
   $('#refresh-btn').classList.remove('hidden');
+  fetch('/api/health').then((r) => r.json()).then((h) => { knownBoot = h.boot; }).catch(() => {});
   requestAnimationFrame(() => updateTabs());
   await loadMapData(); // čerstvá mapa (rozdělené domy po registraci)
   await refreshState();

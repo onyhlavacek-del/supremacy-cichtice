@@ -178,7 +178,7 @@ export const upgradeCost = (def, targetLvl) => {
 };
 
 // Aliance
-export const ALLIANCE_MAX_MEMBERS = 2;     // dle 13.7 (možno zvýšit na 3)
+export const ALLIANCE_MAX_MEMBERS = 3;     // rozšířeno na 3 (28. 8.)
 
 // Dobytí hlavního města (viz sekce 2)
 export const CAPITAL_CAPTURE = { winnerMoraleBonus: 10, winnerMoneyShare: 0.5, loserMoralePenalty: 20, loserMaxMoralePenalty: 40 };

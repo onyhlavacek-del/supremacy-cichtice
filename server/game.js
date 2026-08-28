@@ -644,6 +644,23 @@ export function applyPresenceBoosts(player) {
   return boosted;
 }
 
+// při startu: armádám s trasou přes rybník (staré rozkazy) trasu přepočítej
+{
+  for (const a of q.all('SELECT id, province_id, path FROM armies WHERE path IS NOT NULL')) {
+    try {
+      const path = JSON.parse(a.path);
+      const transitsPond = path.slice(0, -1).some((id) => provinces.get(id)?.kind === 'pond');
+      if (!transitsPond || !path.length) continue;
+      const target = path[path.length - 1];
+      const fresh = findPath(a.province_id, target);
+      if (fresh && fresh.length) {
+        q.run('UPDATE armies SET path = ?, next_arrive = NULL WHERE id = ?', JSON.stringify(fresh), a.id);
+        console.log(`Armáda ${a.id}: trasa přepočítána mimo rybník (${path.length} -> ${fresh.length} uzlů)`);
+      }
+    } catch { /* nevadí */ }
+  }
+}
+
 // ---------- tick ----------
 let lastTick = Date.now();
 export function tick() {
