@@ -79,7 +79,7 @@ function doRegister(body) {
   const decision = body.decision; // undefined | 'team' | 'split'
   if (name.length < 2) return { code: 400, data: { error: 'Jméno musí mít aspoň 2 znaky.' } };
   if (pass.length < 4) return { code: 400, data: { error: 'Heslo musí mít aspoň 4 znaky.' } };
-  if (q.get('SELECT id FROM players WHERE name = ?', name)) return { code: 400, data: { error: 'Tohle jméno už někdo má.' } };
+  if (q.get('SELECT id FROM players WHERE name = ? OR login_alias = ?', name, name)) return { code: 400, data: { error: 'Tohle jméno už někdo má.' } };
   const prov = G.provinces.get(houseId);
   if (!prov || prov.kind !== 'house') return { code: 400, data: { error: 'Vyber svůj dům na mapě.' } };
   const st = q.get('SELECT * FROM province_state WHERE id = ?', houseId);
@@ -186,6 +186,15 @@ function fairSplit(poly) {
     halfB = r[0]?.[0] || null;
   } catch { /* níže */ }
   return [halfA, halfB];
+}
+
+// jednorázově (28. 8. 2026): hráč "sikokot" se všude ukazuje jako Milan Liščák, přihlašuje se postaru
+{
+  const t = q.get("SELECT id FROM players WHERE name = 'sikokot' AND login_alias IS NULL");
+  if (t && !q.get("SELECT id FROM players WHERE name = 'Milan Liščák'")) {
+    q.run("UPDATE players SET login_alias = name, name = 'Milan Liščák' WHERE id = ?", t.id);
+    console.log('Hráč sikokot přejmenován na Milan Liščák (login zůstává sikokot).');
+  }
 }
 
 // migrace: přepočítej existující rozdělené domy na férové poloviny (idempotentní)
@@ -509,7 +518,8 @@ const routes = {
   },
   'POST /api/login': async (req, res) => {
     const { name, pass } = await readBody(req);
-    const p = q.get('SELECT * FROM players WHERE name = ?', String(name || '').trim());
+    const nm = String(name || '').trim();
+    const p = q.get('SELECT * FROM players WHERE name = ? OR login_alias = ?', nm, nm);
     if (!p) return send(res, 401, { error: 'Hráč neexistuje.' });
     const h = hashPass(String(pass || ''), p.salt);
     if (!timingSafeEqual(Buffer.from(h), Buffer.from(p.pass_hash))) return send(res, 401, { error: 'Špatné heslo.' });
@@ -932,6 +942,21 @@ const routes = {
       boot: new Date(BOOT_TS).toISOString(),
       gameStart: +metaGet('game_start', 0),
     });
+  },
+  // přejmenování hráče: nové jméno se ukazuje všude, přihlašuje se dál postaru
+  'POST /api/admin/rename': async (req, res, player) => {
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
+    const { playerId, newName } = await readBody(req);
+    const nm = String(newName || '').trim().slice(0, 24);
+    if (nm.length < 2) return send(res, 400, { error: 'Jméno musí mít aspoň 2 znaky.' });
+    const target = G.playerById(+playerId);
+    if (!target) return send(res, 400, { error: 'Hráč neexistuje.' });
+    if (q.get('SELECT id FROM players WHERE (name = ? OR login_alias = ?) AND id != ?', nm, nm, +playerId)) {
+      return send(res, 400, { error: 'Tohle jméno už někdo má.' });
+    }
+    q.run('UPDATE players SET login_alias = COALESCE(login_alias, name), name = ? WHERE id = ?', nm, +playerId);
+    G.pushRefresh();
+    send(res, 200, { ok: true });
   },
   'POST /api/admin/set-color': async (req, res, player) => {
     if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });

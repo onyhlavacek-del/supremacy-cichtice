@@ -212,6 +212,8 @@ try { db.exec('ALTER TABLE chat ADD COLUMN to_id INTEGER'); } catch { /* sloupec
 // migrace: znak a barva aliance
 try { db.exec("ALTER TABLE alliances ADD COLUMN symbol TEXT DEFAULT 'swords'"); } catch { /* už existuje */ }
 try { db.exec("ALTER TABLE alliances ADD COLUMN bg TEXT DEFAULT '#1565C0'"); } catch { /* už existuje */ }
+// migrace: přejmenování hráče (login zůstává přes původní jméno)
+try { db.exec('ALTER TABLE players ADD COLUMN login_alias TEXT'); } catch { /* už existuje */ }
 // migrace: válečné úsilí v bitvách
 try { db.exec("ALTER TABLE battles ADD COLUMN boosts TEXT DEFAULT '{}'"); } catch { /* už existuje */ }
 // migrace: vylepšení přírodních území

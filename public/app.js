@@ -1107,6 +1107,10 @@ function bindSheetActions(root) {
       if (act === 'admin') renderAdmin();
       if (act === 'feedback') $('#dlg-feedback').classList.remove('hidden');
       if (act === 'admin-refresh') renderAdmin();
+      if (act === 'admin-rename') {
+        const nm = prompt(`Nové jméno pro ${el.dataset.name} (přihlašovat se bude dál postaru):`);
+        if (nm) { const r = await api('/api/admin/rename', { playerId: +el.dataset.id, newName: nm }); if (r.ok) { toast('Přejmenováno.'); renderAdmin(); } }
+      }
       if (act === 'admin-color') {
         const color = prompt(`Nová barva hráče ${el.dataset.name} (#RRGGBB):\nmodrá #1565C0 · zelená #2E7D32 · fialová #6A1B9A · oranžová #EF6C00 · tyrkys #00838F`, '#1565C0');
         if (color) {
@@ -1207,6 +1211,7 @@ async function renderAdmin() {
       <div class="prod-right" style="flex-direction:column;gap:4px">
         <button class="btn small ghost" data-act="admin-give" data-id="${p.id}" data-name="${p.name}">+ suroviny</button>
         <button class="btn small ghost" data-act="admin-color" data-id="${p.id}" data-name="${p.name}">Barva</button>
+        <button class="btn small ghost" data-act="admin-rename" data-id="${p.id}" data-name="${p.name}">Přejmenovat</button>
         ${p.id !== ME.id ? `<button class="btn small danger" data-act="admin-delete" data-id="${p.id}" data-name="${p.name}">Smazat</button>` : ''}
       </div></div>`;
   }
