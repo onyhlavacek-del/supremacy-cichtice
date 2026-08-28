@@ -216,7 +216,7 @@ export function armySpeed(units) {
 }
 
 // nejkratší cesta grafem (Dijkstra dle vzdálenosti centroidů)
-export function findPath(fromId, toId) {
+export function findPath(fromId, toId, avoidPonds = true) {
   if (fromId === toId) return [];
   const dist = new Map([[fromId, 0]]), prev = new Map(), open = new Set([fromId]);
   while (open.size) {
@@ -227,11 +227,12 @@ export function findPath(fromId, toId) {
     const p = provinces.get(cur);
     for (const n of p.adjacent || []) {
       if (!provinces.has(n)) continue;
+      if (avoidPonds && n !== toId && provinces.get(n).kind === 'pond') continue; // vojáci neplavou — rybník jen jako cíl
       const d = dist.get(cur) + hopLen(cur, n);
       if (d < (dist.get(n) ?? Infinity)) { dist.set(n, d); prev.set(n, cur); open.add(n); }
     }
   }
-  if (!prev.has(toId)) return null;
+  if (!prev.has(toId)) return avoidPonds ? findPath(fromId, toId, false) : null; // nouzově i přes rybník
   const path = [];
   for (let at = toId; at !== fromId; at = prev.get(at)) path.unshift(at);
   return path;
