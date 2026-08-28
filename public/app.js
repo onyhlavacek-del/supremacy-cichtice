@@ -1265,6 +1265,42 @@ function showInfo(el) {
   setTimeout(() => document.addEventListener('click', hideBubble, { once: true }), 0);
 }
 
+// ---------- co je nového (changelog) ----------
+// Nový update = přidat záznam NAHORU (vyšší n). Hráčům se ukáže vše, co ještě neviděli.
+const CHANGELOG = [
+  {
+    n: 1, when: '28. 8.',
+    title: 'Velký update',
+    items: [
+      'Interaktivní tutoriál — projde s tebou celou hru (Říše → Tutoriál)',
+      'Válečné úsilí: choď během bitvy — km = síla, nový kopec = pěšák, nové město = síla (první 3 h)',
+      'Žebříček se počítá na BODY (území, vojsko, objevená mapa, výpravy, vzdělání) — přehledná tabulka',
+      'Aliance: max 3 hráči, prapor se znakem, na spojence nejde útočit — posílají se Posily',
+      'Za dobytí cizího přírodního území dostaneš 1 pěšáka',
+      'Chytřejší trasy armád: drží se silnic, ale nezacházejí; rybníky obcházejí',
+      'Víc armád na jednom místě: rozestupy a šipky ‹ › na přepínání',
+      'Klikací kolonky (Morálka, Pěchota…) — ťukni a uvidíš čísla daného území',
+      'Tlačítko Zpětná vazba v Říši — chyba, nápad nebo dotaz jde rovnou Ondrovi',
+      'Refresh šipka sama pozná novou verzi hry',
+    ],
+  },
+];
+function showChangelog() {
+  const seen = +(localStorage.getItem('supChlogSeen') || 0);
+  const fresh = CHANGELOG.filter((u) => u.n > seen);
+  if (!fresh.length) return false;
+  $('#chlog-title').textContent = fresh.length === 1 ? `Update č. ${fresh[0].n} — co je nového?` : 'Co je nového?';
+  $('#chlog-list').innerHTML = fresh.map((u) => `
+    ${fresh.length > 1 ? `<b>Update č. ${u.n}</b> ` : ''}<span class="chlog-when">${u.when}${u.title ? ` · ${u.title}` : ''}</span>
+    <ul>${u.items.map((x) => `<li>${x}</li>`).join('')}</ul>`).join('');
+  $('#dlg-changelog').classList.remove('hidden');
+  return true;
+}
+$('#chlog-ok').onclick = () => {
+  $('#dlg-changelog').classList.add('hidden');
+  localStorage.setItem('supChlogSeen', String(CHANGELOG[0].n));
+};
+
 // ---------- interaktivní průvodce (spotlight tutoriál) ----------
 function tourSteps() {
   const home = MAPDATA.provinces.find((p) => p.id === ME.homeId);
@@ -1423,7 +1459,12 @@ async function enterGame() {
   if (home) { map.centerOn(0, 0, 0.35); map.animateTo(home.c[0], home.c[1], 1.7, 1000); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   // poprvé na tomhle zařízení: pusť tutoriál
-  if (!localStorage.getItem('supTourSeen')) setTimeout(() => startTour(), 1400);
+  if (!localStorage.getItem('supTourSeen')) {
+    localStorage.setItem('supChlogSeen', String(CHANGELOG[0].n)); // nováček: novinky jsou pro něj samozřejmost
+    setTimeout(() => startTour(), 1400);
+  } else {
+    setTimeout(() => showChangelog(), 900);
+  }
 }
 
 // ---------- start ----------
