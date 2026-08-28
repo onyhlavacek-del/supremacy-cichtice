@@ -492,8 +492,8 @@ function renderDrawer() {
   document.querySelectorAll('#drawer-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.d === drawerTab));
   const c = $('#drawer-content');
   $('#chat-row').classList.toggle('hidden', drawerTab !== 'chat');
-  $('#pm-plus').classList.toggle('hidden', drawerTab !== 'chat' || !pmWith);
-  if (drawerTab !== 'chat' || !pmWith) $('#pm-menu').classList.add('hidden');
+  $('#pm-plus').classList.toggle('hidden', drawerTab !== 'chat');
+  if (drawerTab !== 'chat') $('#pm-menu').classList.add('hidden');
   let html = '';
   if (drawerTab === 'board') {
     const board = STATE.players.filter((p) => !p.teamWith)
@@ -1232,6 +1232,12 @@ function showTownTrade(town) {
   });
 }
 
+// ---------- fullscreen ----------
+$('#fs-btn').onclick = () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => toast('Celá obrazovka tu nejde zapnout.'));
+};
+
 // ---------- dialog nové obchodní nabídky ----------
 function openTradeDialog(toId) {
   const resOpts = Object.keys(RES_LABEL).map((k) => `<option value="${k}">${RES_LABEL[k]}</option>`).join('');
@@ -1251,32 +1257,58 @@ $('#tr-send').onclick = async () => {
   if (r.ok) { $('#dlg-trade').classList.add('hidden'); toast('Nabídka vystavena — je v chatu.'); refreshState(); }
 };
 
-// ---------- plus menu v soukromém chatu ----------
-$('#pm-plus').onclick = (e) => { e.stopPropagation(); $('#pm-menu').classList.toggle('hidden'); };
+// ---------- plus menu v chatu (soukromém i veřejném) ----------
+function pmMenuRoot() {
+  $('#pm-menu').innerHTML = `
+    <button data-pmact="trade">Vyměnit suroviny</button>
+    <button data-pmact="pact">Nabídnout mír</button>
+    <button data-pmact="ally">Pozvat do aliance</button>`;
+}
+function pmMenuPickPlayer(next) {
+  const others = STATE.players.filter((p) => p.id !== ME.effId && !p.teamWith);
+  $('#pm-menu').innerHTML = `<span class="meta" style="padding:4px 12px">Komu?</span>` +
+    others.map((p) => `<button data-pmpick="${p.id}">${p.display || p.name}</button>`).join('');
+  $('#pm-menu').querySelectorAll('[data-pmpick]').forEach((b) => {
+    b.onclick = (e) => { e.stopPropagation(); $('#pm-menu').classList.add('hidden'); next(+b.dataset.pmpick); };
+  });
+}
+async function pmDoAction(act, other) {
+  if (act === 'trade') openTradeDialog(other);
+  if (act === 'pact') {
+    const r = await api('/api/pact/offer', { playerId: other });
+    if (r.ok) { toast('Nabídka míru odeslána — objeví se v chatu.'); refreshState(); }
+  }
+  if (act === 'ally') {
+    if (STATE.alliance) {
+      // otevře soukromou konverzaci a předvyplní zprávu; pozvánka odejde až s Poslat
+      pmWith = other;
+      renderDrawer();
+      $('#chat-text').value = `Pozvánka do aliance „${STATE.alliance.name}" — přidáš se?`;
+      pmInviteFor = other;
+      $('#chat-text').focus();
+    } else if (confirm('Nejsi v žádné alianci. Chceš ji teď založit? Po založení pošleš pozvánku odsud.')) {
+      drawerTab = 'diplo'; pmWith = null; renderDrawer();
+    }
+  }
+}
+$('#pm-plus').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('#pm-menu');
+  if (menu.classList.contains('hidden')) {
+    pmMenuRoot();
+    menu.querySelectorAll('[data-pmact]').forEach((b) => {
+      b.onclick = (e2) => {
+        e2.stopPropagation();
+        const act = b.dataset.pmact;
+        if (act === 'trade' && !pmWith) { $('#pm-menu').classList.add('hidden'); openTradeDialog(null); return; }
+        if (pmWith) { $('#pm-menu').classList.add('hidden'); pmDoAction(act, pmWith); }
+        else pmMenuPickPlayer((pid2) => pmDoAction(act, pid2)); // veřejný chat: nejdřív vybrat hráče
+      };
+    });
+    menu.classList.remove('hidden');
+  } else menu.classList.add('hidden');
+};
 document.addEventListener('click', () => $('#pm-menu').classList.add('hidden'));
-$('#pm-menu').querySelectorAll('[data-pmact]').forEach((b) => {
-  b.onclick = async (e) => {
-    e.stopPropagation();
-    $('#pm-menu').classList.add('hidden');
-    const other = pmWith;
-    if (!other) return;
-    if (b.dataset.pmact === 'trade') openTradeDialog(other);
-    if (b.dataset.pmact === 'pact') {
-      const r = await api('/api/pact/offer', { playerId: other });
-      if (r.ok) { toast('Nabídka míru odeslána — objeví se v chatu.'); refreshState(); }
-    }
-    if (b.dataset.pmact === 'ally') {
-      if (STATE.alliance) {
-        // předvyplní zprávu; pozvánka se odešle až tlačítkem Poslat
-        $('#chat-text').value = `Pozvánka do aliance „${STATE.alliance.name}" — přidáš se?`;
-        pmInviteFor = other;
-        $('#chat-text').focus();
-      } else if (confirm('Nejsi v žádné alianci. Chceš ji teď založit? Po založení pošleš pozvánku odsud.')) {
-        drawerTab = 'diplo'; pmWith = null; renderDrawer();
-      }
-    }
-  };
-});
 
 // ---------- zpětná vazba ----------
 $('#fb-close').onclick = () => $('#dlg-feedback').classList.add('hidden');
@@ -1575,6 +1607,7 @@ async function enterGame() {
   $('#tabs').classList.remove('hidden');
   $('#menu-btn').classList.remove('hidden');
   $('#refresh-btn').classList.remove('hidden');
+  $('#fs-btn').classList.remove('hidden');
   fetch('/api/health').then((r) => r.json()).then((h) => { knownBoot = h.boot; }).catch(() => {});
   requestAnimationFrame(() => updateTabs());
   await loadMapData(); // čerstvá mapa (rozdělené domy po registraci)

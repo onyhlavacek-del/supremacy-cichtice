@@ -117,6 +117,18 @@ body {
 #sheet h3 { font-size: 13px; margin: 12px 0 6px; color: #6B675F; text-transform: uppercase; letter-spacing: .4px; }
 .sub { color: #8B877F; font-size: 12.5px; margin-bottom: 8px; }
 .owner-dot { width: 10px; height: 10px; border-radius: 5px; display: inline-block; flex: none; }
+/* fullscreen tlacitko vlevo pod surovinami */
+#fs-btn {
+  position: fixed; top: calc(env(safe-area-inset-top) + 52px); left: 10px; z-index: 32;
+  width: 40px; height: 40px; border-radius: 20px; border: 1px solid #DAD6CE;
+  background: #FFFFFFEE; color: #2B2A28; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px #00000018; backdrop-filter: blur(4px);
+}
+@media (prefers-color-scheme: dark) {
+  #fs-btn { background: #26282BEE; border-color: #3A3D42; color: #E8E6E1; }
+}
+
 /* uroven rise: radek je zaroven progress bar */
 .lvl-row { position: relative; overflow: hidden; border-radius: 8px; }
 .lvl-row::before {
