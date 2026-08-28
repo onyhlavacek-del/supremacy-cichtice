@@ -752,13 +752,13 @@ function renderProvince(id) {
         const f = RULES.fortress[st.fortress + 1];
         any = true;
         html += `<div class="prod"><div><b>Pevnost lvl ${st.fortress + 1}</b>${costChips(f.cost)}</div>
-          <div class="prod-right"><span class="meta">${f.hours} h</span><button class="btn small" data-act="build" data-kind="fortress" data-prov="${id}" ${canPay(f.cost) ? '' : 'disabled'}>Stavět</button></div></div>`;
+          <div class="prod-right"><span class="meta">${f.hours} h · +${RULES.empire.xp.building} XP</span><button class="btn small" data-act="build" data-kind="fortress" data-prov="${id}" ${canPay(f.cost) ? '' : 'disabled'}>Stavět</button></div></div>`;
       }
       if (prov.kind === 'house' && st.barracks < 2) {
         const b = RULES.barracks[st.barracks + 1];
         any = true;
         html += `<div class="prod"><div><b>Kasárna lvl ${st.barracks + 1}</b>${costChips(b.cost)}</div>
-          <div class="prod-right"><span class="meta">${b.hours} h</span><button class="btn small" data-act="build" data-kind="barracks" data-prov="${id}" ${canPay(b.cost) ? '' : 'disabled'}>Stavět</button></div></div>`;
+          <div class="prod-right"><span class="meta">${b.hours} h · +${RULES.empire.xp.building} XP</span><button class="btn small" data-act="build" data-kind="barracks" data-prov="${id}" ${canPay(b.cost) ? '' : 'disabled'}>Stavět</button></div></div>`;
       }
       if (!any) html += `<p class="sub">Vše postaveno na maximum.</p>`;
     }
@@ -784,7 +784,7 @@ function renderProvince(id) {
           ${upkeep ? `<span class="meta">náklady: ${upkeep}</span>` : ''}
           ${!needsMet ? `<span class="meta">potřebuje: ${needsDef?.label} úroveň ${def.needs[1]}</span>` : ''}
         </div>
-        <div class="prod-right">${atMax ? '<b>MAX</b>' : `<span class="meta">${def.hours} h</span>
+        <div class="prod-right">${atMax ? '<b>MAX</b>' : `<span class="meta">${def.hours} h · +${RULES.empire.xp.upgrade} XP</span>
           <button class="btn small" data-act="upgrade" data-key="${def.key}" data-prov="${id}" ${busy || !needsMet || !canPay(cost) ? 'disabled' : ''}>${lvl ? 'Vylepšit' : 'Pořídit'}</button>`}</div></div>`;
       }
     }
@@ -1005,22 +1005,8 @@ function renderTrade() {
   let html = '<h2>Obchod</h2>';
   // nabídky hráčů
   html += '<h3>Nabídky mezi hráči</h3>';
-  const open = STATE.trades.filter((t) => t.status === 'open');
-  if (!open.length) html += '<p class="sub">Žádné otevřené nabídky.</p>';
-  for (const t of open) {
-    const gv = Object.entries(t.give).map(([k, v]) => `${v} ${RES_LABEL[k]}`).join(' + ');
-    const wt = Object.entries(t.want).map(([k, v]) => `${v} ${RES_LABEL[k]}`).join(' + ');
-    const mine = t.fromId === ME.effId;
-    html += `<div class="row"><div><b>${ownerName(t.fromId)}</b> dává ${gv}<br><span class="meta">chce ${wt}${t.toId ? ` · pro: ${ownerName(t.toId)}` : ''}</span></div>
-      <div>${mine ? `<button class="btn small ghost" data-act="tradecancel" data-id="${t.id}">Zrušit</button>` : `<button class="btn small" data-act="tradeaccept" data-id="${t.id}">Přijmout</button>`}</div></div>`;
-  }
-  html += `<h3>Nová nabídka</h3>
-  <div class="inline"><select id="tr-give-res">${Object.keys(RES_LABEL).map((k) => `<option value="${k}">${RES_LABEL[k]}</option>`).join('')}</select>
-  <input id="tr-give-n" type="number" placeholder="dávám" min="1"></div>
-  <div class="inline"><select id="tr-want-res">${Object.keys(RES_LABEL).map((k) => `<option value="${k}">${RES_LABEL[k]}</option>`).join('')}</select>
-  <input id="tr-want-n" type="number" placeholder="chci" min="1"></div>
-  <select id="tr-to"><option value="">Veřejná nabídka (kdokoli)</option>${STATE.players.filter((p) => p.id !== ME.effId && !p.teamWith).map((p) => `<option value="${p.id}" ${p.id === tradeTo ? 'selected' : ''}>${p.name}</option>`).join('')}</select>
-  <button class="btn" data-act="tradecreate">Vystavit nabídku</button>`;
+  html += `<p class="sub">Nabídky mezi hráči najdeš v CHATU — chodí tam jako karty. Novou vytvoříš tlačítkem v chatu, nebo přes + v soukromé konverzaci.</p>
+  <button class="btn ghost small" data-act="gototrade" style="margin-bottom:6px">Nová nabídka hráčům</button>`;
 
   // města
   const visitedTowns = STATE.visits.filter((v) => v.startsWith('town:')).map((v) => v.slice(5));
@@ -1073,9 +1059,7 @@ function renderEmpire() {
   let html = `<h2>${ownerDot(ME.effId)} ${my?.name || ME.name}</h2>`;
   const emp = ME.empire || { level: 1, into: 0, need: 120, capacity: 8 };
   const over = (my?.provinceCount || 0) - emp.capacity;
-  html += `<div class="row" data-info="empire"><span class="info-u">Úroveň říše</span><b>${emp.level}</b></div>
-    <div class="bar"><i style="width:${Math.min(100, Math.round(emp.into / emp.need * 100))}%"></i></div>
-    <p class="sub">${emp.into} / ${emp.need} XP do další úrovně</p>`;
+  html += `<div class="row lvl-row" data-info="empire" style="--pct:${Math.min(100, Math.round(emp.into / emp.need * 100))}%"><span class="info-u">Úroveň říše</span><b>${emp.level}</b></div>`;
   html += `<div class="row"><span>Území</span><b style="color:${over > 0 ? '#C62828' : 'inherit'}">${my?.provinceCount || 0} / ${emp.capacity}</b></div>`;
   if (over > 0) html += `<p class="sub" style="color:#C62828">Držíš ${over} území nad kapacitu — morálka všech území klesá o ${over * 5}. Získej XP (stavby, vylepšení, výpravy) na další úroveň.</p>`;
   if (STATE.winner) html += `<div class="row"><b>Vítěz hry: ${STATE.winner}</b></div>`;
@@ -1165,7 +1149,7 @@ function bindSheetActions(root) {
       if (act === 'tradeaccept') { const r = await api('/api/trade/accept', { id: +el.dataset.id }); if (r.ok) { toast('Obchod proběhl.'); refreshState(); } }
       if (act === 'tradereject') { const r = await api('/api/trade/reject', { id: +el.dataset.id }); if (r.ok) refreshState(); }
       if (act === 'tradecancel') { await api('/api/trade/cancel', { id: +el.dataset.id }); refreshState(); }
-      if (act === 'gototrade') { closeDrawer(); activeTab = 'trade'; updateTabs(); renderSheet(); }
+      if (act === 'gototrade') openTradeDialog(null);
       if (act === 'logout') { await api('/api/logout', {}); location.reload(); }
       if (act === 'tutorial') startTour();
       if (act === 'admin') renderAdmin();
@@ -1248,6 +1232,25 @@ function showTownTrade(town) {
   });
 }
 
+// ---------- dialog nové obchodní nabídky ----------
+function openTradeDialog(toId) {
+  const resOpts = Object.keys(RES_LABEL).map((k) => `<option value="${k}">${RES_LABEL[k]}</option>`).join('');
+  $('#tr-give-res').innerHTML = resOpts;
+  $('#tr-want-res').innerHTML = resOpts;
+  $('#tr-to').innerHTML = `<option value="">Veřejná nabídka (kdokoli)</option>` + STATE.players
+    .filter((p) => p.id !== ME.effId && !p.teamWith)
+    .map((p) => `<option value="${p.id}" ${p.id === toId ? 'selected' : ''}>${p.name}</option>`).join('');
+  $('#tr-give-n').value = ''; $('#tr-want-n').value = '';
+  $('#dlg-trade').classList.remove('hidden');
+}
+$('#tr-close').onclick = () => $('#dlg-trade').classList.add('hidden');
+$('#tr-send').onclick = async () => {
+  const give = { [$('#tr-give-res').value]: +$('#tr-give-n').value };
+  const want = { [$('#tr-want-res').value]: +$('#tr-want-n').value };
+  const r = await api('/api/trade/create', { toId: $('#tr-to').value || null, give, want });
+  if (r.ok) { $('#dlg-trade').classList.add('hidden'); toast('Nabídka vystavena — je v chatu.'); refreshState(); }
+};
+
 // ---------- plus menu v soukromém chatu ----------
 $('#pm-plus').onclick = (e) => { e.stopPropagation(); $('#pm-menu').classList.toggle('hidden'); };
 document.addEventListener('click', () => $('#pm-menu').classList.add('hidden'));
@@ -1257,12 +1260,7 @@ $('#pm-menu').querySelectorAll('[data-pmact]').forEach((b) => {
     $('#pm-menu').classList.add('hidden');
     const other = pmWith;
     if (!other) return;
-    if (b.dataset.pmact === 'trade') {
-      tradeTo = other;
-      closeDrawer();
-      activeTab = 'trade'; updateTabs(); renderSheet();
-      toast(`Nabídka pro hráče ${ownerName(other)} — vyplň, co dáváš a co chceš.`);
-    }
+    if (b.dataset.pmact === 'trade') openTradeDialog(other);
     if (b.dataset.pmact === 'pact') {
       const r = await api('/api/pact/offer', { playerId: other });
       if (r.ok) { toast('Nabídka míru odeslána — objeví se v chatu.'); refreshState(); }
@@ -1329,6 +1327,7 @@ function showInfo(el) {
   if (el.dataset.info === 'empire') {
     const emp = ME.empire;
     return showInfoHtml(el, `<b>Úroveň říše ${emp.level}</b>
+      <p class="sub"><b>${emp.into} / ${emp.need} XP</b> do další úrovně.</p>
       <p class="sub">Určuje, kolik území udržíš bez postihu: teď ${emp.capacity}. Nad kapacitu jde dobývat dál, ale morálka VŠECH tvých území klesá o 5 za každé území navíc.</p>
       <p class="sub"><b>XP získáš:</b> vylepšení přírody +15, stavba +20, dobytí +10, vyhraná bitva +25, kopec +10, město +15, každý ušlý km +2.</p>`);
   }

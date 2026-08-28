@@ -470,11 +470,12 @@ export function scoreOf(playerId) {
 }
 
 // XP říše: level-up zvyšuje správní kapacitu území
-export function addXp(playerId, amount) {
+export function addXp(playerId, amount, label = null) {
   const pl = playerById(playerId);
   if (!pl || !amount) return;
   const before = C.levelFor(pl.xp || 0).lvl;
   q.run('UPDATE players SET xp = COALESCE(xp, 0) + ? WHERE id = ?', amount, playerId);
+  if (label) notify(playerId, 'xp', `+${Math.round(amount)} XP — ${label}.`);
   const after = C.levelFor((pl.xp || 0) + amount).lvl;
   if (after > before) {
     notify(playerId, 'level', `Říše postoupila na úroveň ${after} — udržíš teď ${C.capacityFor(after)} území bez postihu.`);
@@ -491,7 +492,7 @@ export function capture(provinceId, newOwnerId) {
   const winner = playerById(newOwnerId);
   if (oldOwner) notify(oldOwner, 'lost', `Ztratil jsi ${prov.name} — dobyl ho ${winner.name}.`);
   notify(null, 'capture', `${winner.name} ${oldOwner ? 'dobyl' : 'obsadil'} ${prov.name}.`);
-  addXp(newOwnerId, C.EMPIRE.xp.capture);
+  addXp(newOwnerId, C.EMPIRE.xp.capture, 'dobyté území');
   // dobytí přírody (bez domu = bez kasáren) od jiného hráče: odměna 1 pěšák na místě
   if (oldOwner && oldOwner !== newOwnerId && prov.kind !== 'house') {
     addUnits(newOwnerId, provinceId, 'infantry', 1);
@@ -522,7 +523,7 @@ function runBattles(now) {
     const prov = provinces.get(b.province_id);
     if (!attackers.length) { q.run('DELETE FROM battles WHERE id = ?', b.id); continue; }
     if (!defenders.length) {
-      addXp(attackers[0].owner_id, C.EMPIRE.xp.battleWon);
+      addXp(attackers[0].owner_id, C.EMPIRE.xp.battleWon, 'vyhraná bitva');
       capture(b.province_id, attackers[0].owner_id);
       q.run("UPDATE armies SET stance = 'move' WHERE province_id = ?", b.province_id);
       q.run('DELETE FROM battles WHERE id = ?', b.id);
@@ -543,7 +544,7 @@ function runBattles(now) {
       notify(null, 'battle', `Bitva o ${prov.name} skončila — obě strany padly.`);
     } else if (!after.attackers.length) {
       q.run('DELETE FROM battles WHERE id = ?', b.id);
-      if (st.owner_id) addXp(st.owner_id, C.EMPIRE.xp.battleWon);
+      if (st.owner_id) addXp(st.owner_id, C.EMPIRE.xp.battleWon, 'vyhraná bitva');
       notify(st.owner_id, 'battle', `Ubránil jsi ${prov.name} (ztráty: útočník ${lossAtk}, ty ${lossDef}).`);
     } else if (!after.defenders.length) {
       capture(b.province_id, after.attackers[0].owner_id);
@@ -703,14 +704,14 @@ function economyTick(now, minutes) {
         if (st.build_kind === 'fortress') {
           q.run('UPDATE province_state SET fortress = fortress + 1, build_kind = NULL, build_until = NULL WHERE id = ?', st.id);
           notify(pl.id, 'build', `Stavba dokončena: pevnost — ${prov.name}.`);
-          addXp(pl.id, C.EMPIRE.xp.building);
+          addXp(pl.id, C.EMPIRE.xp.building, 'dokončená stavba');
         } else if (st.build_kind === 'barracks') {
           q.run('UPDATE province_state SET barracks = barracks + 1, build_kind = NULL, build_until = NULL WHERE id = ?', st.id);
           notify(pl.id, 'build', `Stavba dokončena: kasárna — ${prov.name}.`);
-          addXp(pl.id, C.EMPIRE.xp.building);
+          addXp(pl.id, C.EMPIRE.xp.building, 'dokončená stavba');
         } else if (st.build_kind.startsWith('upg:')) {
           const key = st.build_kind.slice(4);
-          addXp(pl.id, C.EMPIRE.xp.upgrade);
+          addXp(pl.id, C.EMPIRE.xp.upgrade, 'dokončené vylepšení');
           const ups = JSON.parse(st.upgrades || '{}');
           ups[key] = (ups[key] || 0) + 1;
           q.run('UPDATE province_state SET upgrades = ?, build_kind = NULL, build_until = NULL WHERE id = ?', JSON.stringify(ups), st.id);

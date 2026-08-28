@@ -424,7 +424,7 @@ function checkPois(player, x, y, ts = ts) {
     const already = q.get('SELECT 1 AS x FROM visits WHERE player_id = ? AND poi_key = ?', pid, key);
     if (already) continue;
     q.run('INSERT INTO visits (player_id, poi_key, ts) VALUES (?, ?, ?)', pid, key, ts);
-    G.addXp(pid, poi.type === 'town' ? C.EMPIRE.xp.town : C.EMPIRE.xp.hill);
+    G.addXp(pid, poi.type === 'town' ? C.EMPIRE.xp.town : C.EMPIRE.xp.hill, poi.type === 'town' ? 'objevené město' : 'zdolaný kopec');
     // zdolaný kopec odkryje velký kruh okolí (nápad Matěje: rozhled z vrcholu)
     if (poi.type === 'peak') G.addDiscovery(pid, poi.x, poi.y, 700);
     let rewardText = '';
@@ -568,6 +568,7 @@ const routes = {
     hillRewardBase: C.HILL_REWARD_BASE, townRewardBase: C.TOWN_REWARD_BASE,
     gameLengthDays: C.GAME_LENGTH_DAYS, victoryShare: C.VICTORY_PROVINCE_SHARE,
     natureUpgrades: C.NATURE_UPGRADES,
+    empire: C.EMPIRE,
   }),
   'GET /api/state': (req, res, player) => send(res, 200, snapshot(player)),
   'POST /api/position': async (req, res, player) => {
