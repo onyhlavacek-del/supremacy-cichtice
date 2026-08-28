@@ -1295,17 +1295,17 @@ function celebrateHill(d) {
     else ctx2.clearRect(0, 0, cv.width, cv.height);
   };
   requestAnimationFrame(drawConfetti);
-  // roztočení válce (po vykreslení) a dojezd na výhru
-  requestAnimationFrame(() => requestAnimationFrame(() => {
+  // chvilku napětí, pak roztočení válce a dojezd na výhru
+  setTimeout(() => {
     strip.style.transition = 'transform 2.6s cubic-bezier(0.12, 0.7, 0.15, 1)';
     strip.style.transform = `translateY(-${24 * 96}px)`;
-  }));
+  }, 2000);
   setTimeout(() => {
     $('#hw-result').innerHTML = `+${d.amount} ${RES_LABEL[d.res]}${d.soldiers ? `<span class="hw-sub">a ${d.soldiers}× pěchota dorazí domů</span>` : ''}`;
     $('#hw-close').classList.remove('hidden');
-  }, 2700);
+  }, 4700);
   clearTimeout(hwTimer);
-  hwTimer = setTimeout(() => ov.classList.add('hidden'), 9000);
+  hwTimer = setTimeout(() => ov.classList.add('hidden'), 11000);
 }
 $('#hw-close').onclick = () => { clearTimeout(hwTimer); $('#hillwin').classList.add('hidden'); };
 
