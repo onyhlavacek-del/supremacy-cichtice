@@ -327,6 +327,7 @@ function showBubble(prov, st, wx, wy) {
       <div class="chips"><span class="chip" data-rlabel="${RES_LABEL[prov.resource]}">${RES_ICON[prov.resource]}${RES_LABEL[prov.resource]}${prov.double ? ' 2×' : ''}</span>
       ${prov.kind === 'house' ? `<span class="chip" data-rlabel="Peníze (daně)">${RES_ICON.money}daně</span>` : ''}
       ${(() => { const op = STATE.players.find((p) => p.id === st.owner); return op?.ally ? `<span class="chip" data-rlabel="Aliance">${allyBanner(op.ally, 14)}${op.ally.name || 'aliance'}</span>` : ''; })()}</div>`;
+    if (st.owner !== ME.effId) html += `<p class="sub">Za dobytí: +${RULES.empire.xp.capture} XP${prov.kind !== 'house' && st.owner ? ' a +1 pěšák' : ''}</p>`;
     if (st.fortress) html += `<p class="sub">Pevnost lvl ${st.fortress}</p>`;
     if (st.hidden) html += `<p class="sub">Posádka skrytá (pevnost)</p>`;
     else if (st.garrison?.length) html += st.garrison.map((g) => `<p class="sub">${ownerName(g.owner)}: ${g.size} jednotek</p>`).join('');
