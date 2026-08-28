@@ -1295,17 +1295,22 @@ function celebrateHill(d) {
     else ctx2.clearRect(0, 0, cv.width, cv.height);
   };
   requestAnimationFrame(drawConfetti);
-  // chvilku napětí, pak roztočení válce a dojezd na výhru
+  // dramaturgie: 2 s napětí -> dlouhé točení s dojezdem o POLÍČKO DŘÍV ->
+  // zastavení, chvilka ticha -> a při nejmenší rychlosti to ještě přepadne na výhru
   setTimeout(() => {
-    strip.style.transition = 'transform 2.6s cubic-bezier(0.12, 0.7, 0.15, 1)';
-    strip.style.transform = `translateY(-${24 * 96}px)`;
+    strip.style.transition = 'transform 3.8s cubic-bezier(0.1, 0.65, 0.1, 1)';
+    strip.style.transform = `translateY(-${23 * 96}px)`; // o jedno políčko před výhrou
   }, 2000);
+  setTimeout(() => {
+    strip.style.transition = 'transform 0.65s cubic-bezier(0.34, 1.25, 0.64, 1)';
+    strip.style.transform = `translateY(-${24 * 96}px)`; // finální přepadnutí
+  }, 6400);
   setTimeout(() => {
     $('#hw-result').innerHTML = `+${d.amount} ${RES_LABEL[d.res]}${d.soldiers ? `<span class="hw-sub">a ${d.soldiers}× pěchota dorazí domů</span>` : ''}`;
     $('#hw-close').classList.remove('hidden');
-  }, 4700);
+  }, 7200);
   clearTimeout(hwTimer);
-  hwTimer = setTimeout(() => ov.classList.add('hidden'), 11000);
+  hwTimer = setTimeout(() => ov.classList.add('hidden'), 14000);
 }
 $('#hw-close').onclick = () => { clearTimeout(hwTimer); $('#hillwin').classList.add('hidden'); };
 
