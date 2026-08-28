@@ -111,6 +111,179 @@ for (const r of q.all('SELECT * FROM province_custom')) {
   console.log(`Sousednosti doplněny: +${added} hran (mezera do ${MAXGAP} m, rybníky respektovány).`);
 }
 
+// ---------- silniční graf: armády pochodují po skutečných cestách ----------
+const ROADNET = { pts: [], adj: [] };
+{
+  const layers = JSON.parse(readFileSync(join(ROOT, 'data', 'map', 'layers.json'), 'utf8')).layers;
+  const lines = [
+    ...(layers.roads || []).map((r) => r.l),
+    ...(layers.trails || []).map((t) => t.l),
+  ];
+  const idxOf = new Map();
+  const nodeAt = (x, y) => {
+    const k = `${Math.round(x)}:${Math.round(y)}`;
+    if (!idxOf.has(k)) { idxOf.set(k, ROADNET.pts.length); ROADNET.pts.push([x, y]); ROADNET.adj.push([]); }
+    return idxOf.get(k);
+  };
+  for (const line of lines) {
+    if (!line || line.length < 2) continue;
+    for (let i = 0; i < line.length - 1; i++) {
+      const a = nodeAt(line[i][0], line[i][1]), b = nodeAt(line[i + 1][0], line[i + 1][1]);
+      if (a === b) continue;
+      const len = Math.hypot(line[i][0] - line[i + 1][0], line[i][1] - line[i + 1][1]);
+      ROADNET.adj[a].push({ to: b, len });
+      ROADNET.adj[b].push({ to: a, len });
+    }
+  }
+  console.log(`Silniční graf: ${ROADNET.pts.length} uzlů.`);
+}
+const OFFROAD = 2.0; // terén mimo cestu je při VÝBĚRU trasy 2× dražší — jde se PO CESTÁCH, zkratka jen při extrémní oklice
+
+const _ccw = (a, b, c) => (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0]);
+const _segInt = (a, b, c, d) => _ccw(a, c, d) !== _ccw(b, c, d) && _ccw(a, b, c) !== _ccw(a, b, d);
+function segCrossesPond(a, b) {
+  for (const p of provinces.values()) {
+    if (p.kind !== 'pond') continue;
+    for (let i = 0; i < p.poly.length - 1; i++) if (_segInt(a, b, p.poly[i], p.poly[i + 1])) return true;
+  }
+  return false;
+}
+
+function nearestRoadNode(p) {
+  let bi = -1, bd = Infinity;
+  for (let i = 0; i < ROADNET.pts.length; i++) {
+    const d = Math.hypot(ROADNET.pts[i][0] - p[0], ROADNET.pts[i][1] - p[1]);
+    if (d < bd) { bd = d; bi = i; }
+  }
+  return [bi, bd];
+}
+
+// nejkratší pěší trasa: po cestách s napojením terénem; přímý terénní řez vyhrává,
+// jen když je i s přirážkou kratší než cesta
+export function roadRoute(from, to) {
+  const direct = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  const directOk = !segCrossesPond(from, to); // vojáci neplavou ani „zkratkou"
+  if (!ROADNET.pts.length) return directOk ? { pts: [from, to], len: direct } : null;
+  const [sa, da] = nearestRoadNode(from), [sb, db2] = nearestRoadNode(to);
+  const N = ROADNET.pts.length;
+  const dist = new Float64Array(N).fill(Infinity);
+  const prev = new Int32Array(N).fill(-1);
+  dist[sa] = 0;
+  const heap = [[0, sa]];
+  const hpush = (it) => {
+    heap.push(it);
+    let i = heap.length - 1;
+    while (i > 0) { const pi = (i - 1) >> 1; if (heap[pi][0] <= heap[i][0]) break; [heap[pi], heap[i]] = [heap[i], heap[pi]]; i = pi; }
+  };
+  const hpop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        let l = 2 * i + 1, r = l + 1, m = i;
+        if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
+        if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+        if (m === i) break;
+        [heap[m], heap[i]] = [heap[i], heap[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+  while (heap.length) {
+    const [d, u] = hpop();
+    if (d > dist[u]) continue;
+    if (u === sb) break;
+    for (const e of ROADNET.adj[u]) {
+      const nd = d + e.len;
+      if (nd < dist[e.to]) { dist[e.to] = nd; prev[e.to] = u; hpush([nd, e.to]); }
+    }
+  }
+  if (!isFinite(dist[sb])) return directOk ? { pts: [from, to], len: direct } : null;
+  const roadCost = da * OFFROAD + dist[sb] + db2 * OFFROAD;
+  if (directOk && direct * OFFROAD <= roadCost) return { pts: [from, to], len: direct };
+  const nodes = [];
+  for (let u = sb; u !== -1; u = prev[u]) nodes.unshift(ROADNET.pts[u]);
+  return { pts: [from, ...nodes, to], len: da + dist[sb] + db2 };
+}
+
+// bbox provincií pro rychlé point-in-province
+const PROVBOX = new Map();
+for (const p of provinces.values()) {
+  let x0 = 1e12, y0 = 1e12, x1 = -1e12, y1 = -1e12;
+  for (const [x, y] of p.poly) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+  PROVBOX.set(p.id, [x0, y0, x1, y1]);
+}
+export function provinceAtPoint(pt) {
+  for (const p of provinces.values()) {
+    const b = PROVBOX.get(p.id);
+    if (!b || pt[0] < b[0] || pt[0] > b[2] || pt[1] < b[1] || pt[1] > b[3]) continue;
+    if (pointInPoly(pt, p.poly)) return p.id;
+  }
+  return null;
+}
+
+// sestaví pochod: polylina po cestách + posloupnost provincií + úseky (řezy na hranicích)
+export function buildMarch(fromId, destId) {
+  const from = provinces.get(fromId), dest = provinces.get(destId);
+  if (!from || !dest) return null;
+  let rr = roadRoute(from.c, dest.c);
+  if (!rr) {
+    // nouzově: stará trasa přes středy území (bez rybníků)
+    const fp = findPath(fromId, destId, null);
+    if (!fp || !fp.length) return null;
+    const cpts = [from.c];
+    let cur = fromId;
+    for (const n of fp) { const r = routeBetween(cur, n); if (r) cpts.push(...r.slice(1)); else cpts.push(provinces.get(n).c); cur = n; }
+    rr = { pts: cpts, len: 0 };
+  }
+  const pts = rr.pts;
+  const STEP = 10;
+  const samples = [pts[0]];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(1, Math.ceil(d / STEP));
+    for (let k = 1; k <= n; k++) samples.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  // provincie vzorků (cesty vedou po hranicích parcel — nutná hystereze, jinak trasa „pinguje")
+  const sProv = samples.map((pt) => provinceAtPoint(pt));
+  const CONFIRM = 4; // změna platí, až když nová provincie drží aspoň 4 vzorky (~40 m)…
+  const seq = [];
+  let curProv = fromId;
+  for (let si = 0; si < samples.length; si++) {
+    const pid = sProv[si];
+    if (pid == null || pid === curProv) continue;
+    if (provinces.get(pid).kind === 'pond' && pid !== destId) continue;
+    let ok = pid === destId; // …cíl potvrzení nepotřebuje
+    if (!ok) {
+      ok = true;
+      for (let k = 1; k < CONFIRM; k++) {
+        const nx = sProv[Math.min(samples.length - 1, si + k)];
+        if (nx != null && nx !== pid) { ok = false; break; }
+      }
+    }
+    if (!ok) continue;
+    if (seq.length && seq[seq.length - 1].id === pid) continue;
+    curProv = pid;
+    seq.push({ id: pid, at: si });
+  }
+  if (!seq.length || seq[seq.length - 1].id !== destId) seq.push({ id: destId, at: samples.length - 1 });
+  seq[seq.length - 1].at = samples.length - 1; // poslední úsek vždy až do středu cíle
+  const hops = [];
+  let prevAt = 0;
+  for (const sEl of seq) {
+    let hp = samples.slice(prevAt, sEl.at + 1);
+    if (hp.length < 2) hp = [samples[Math.max(0, prevAt - 1)], samples[sEl.at]];
+    let m = 0;
+    for (let i = 0; i < hp.length - 1; i++) m += Math.hypot(hp[i + 1][0] - hp[i][0], hp[i + 1][1] - hp[i][1]);
+    hops.push({ p: hp.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]), m: Math.round(m) });
+    prevAt = sEl.at;
+  }
+  return { path: seq.map((x) => x.id), hops, total: hops.reduce((sm, h) => sm + h.m, 0) };
+}
+
 // pozice školy: meta override > dům čp. 91 > střed vesnice
 {
   const mx = metaGet('school_x'), my = metaGet('school_y');
@@ -320,8 +493,9 @@ export function orderMove(player, armyId, destId, stance) {
   if (!provinces.has(destId)) return { error: 'Neplatný cíl.' };
   const units = JSON.parse(a.units);
   if (armySize(units) === 0) return { error: 'Armáda je prázdná.' };
-  const path = findPath(a.province_id, destId, pid);
-  if (!path || !path.length) return { error: 'Cesta nenalezena.' };
+  const march = buildMarch(a.province_id, destId);
+  if (!march || !march.path.length) return { error: 'Cesta nenalezena.' };
+  const path = march.path;
   const destOwner = q.get('SELECT owner_id FROM province_state WHERE id = ?', destId)?.owner_id;
   if (destOwner && destOwner !== pid && allied(pid, destOwner) && stance === 'attack') {
     return { error: 'Na spojence útočit nemůžeš — pošli armádu jako Přesun (posily).' };
@@ -334,12 +508,10 @@ export function orderMove(player, armyId, destId, stance) {
   // vzdálený rozkaz: příprava podle délky trasy; fyzická přítomnost u armády = vyráží hned
   let delay = 0;
   if (!presenceAt(player.id, a.province_id)) {
-    let len = 0, cur = a.province_id;
-    for (const n of path) { len += hopLen(cur, n); cur = n; }
-    delay = (len / 1000) * C.REMOTE_DELAY_MIN_PER_KM * 60_000;
+    delay = (march.total / 1000) * C.REMOTE_DELAY_MIN_PER_KM * 60_000;
   }
-  q.run('UPDATE armies SET path = ?, next_arrive = NULL, depart_delay_until = ?, stance = ? WHERE id = ?',
-    JSON.stringify(path), Date.now() + delay, stance === 'attack' ? 'attack' : 'move', a.id);
+  q.run('UPDATE armies SET path = ?, route = ?, next_arrive = NULL, depart_delay_until = ?, stance = ? WHERE id = ?',
+    JSON.stringify(path), JSON.stringify(march.hops), Date.now() + delay, stance === 'attack' ? 'attack' : 'move', a.id);
   pushRefresh();
   return { ok: true, delayMin: Math.round(delay / 60_000) };
 }
@@ -642,7 +814,9 @@ function processArmies(now) {
     if (!a.next_arrive) {
       // vyraž k dalšímu uzlu (province_id zůstává = odkud jde)
       const units = JSON.parse(a.units);
-      let hopH = hopLen(a.province_id, path[0]) / armySpeed(units);
+      let hopM = null;
+      if (a.route) { try { hopM = JSON.parse(a.route)[0]?.m ?? null; } catch { /* stará data */ } }
+      let hopH = (hopM ?? hopLen(a.province_id, path[0])) / armySpeed(units);
       const owner = playerById(a.owner_id);
       if (owner && (presenceAt(owner.id, path[0]) || presenceAt(owner.id, a.province_id))) hopH /= C.PRESENCE_MOVE_SPEEDUP;
       q.run('UPDATE armies SET next_arrive = ?, depart_delay_until = NULL WHERE id = ?', Math.round(now + hopH * 3600_000), a.id);
@@ -650,8 +824,10 @@ function processArmies(now) {
     }
     if (now >= a.next_arrive) {
       const arrivedId = path.shift();
-      q.run('UPDATE armies SET province_id = ?, path = ?, next_arrive = NULL WHERE id = ?',
-        arrivedId, path.length ? JSON.stringify(path) : null, a.id);
+      let routeRest = null;
+      if (a.route) { try { const rt = JSON.parse(a.route); rt.shift(); routeRest = rt.length ? JSON.stringify(rt) : null; } catch { /* stará data */ } }
+      q.run('UPDATE armies SET province_id = ?, path = ?, next_arrive = NULL, route = ? WHERE id = ?',
+        arrivedId, path.length ? JSON.stringify(path) : null, routeRest, a.id);
       const owner = playerById(a.owner_id);
       const st = q.get('SELECT * FROM province_state WHERE id = ?', arrivedId);
       const prov = provinces.get(arrivedId);
@@ -861,15 +1037,14 @@ q.run('DELETE FROM alliances WHERE id NOT IN (SELECT DISTINCT alliance_id FROM a
 
 // při startu: trasy pochodujících armád přepočítej novým algoritmem (změní se jen když je nová lepší)
 {
-  for (const a of q.all('SELECT id, owner_id, province_id, path FROM armies WHERE path IS NOT NULL')) {
+  for (const a of q.all('SELECT id, owner_id, province_id, path, route FROM armies WHERE path IS NOT NULL')) {
     try {
       const path = JSON.parse(a.path);
-      if (!path.length) continue;
-      const fresh = findPath(a.province_id, path[path.length - 1], a.owner_id);
-      if (fresh && fresh.length && JSON.stringify(fresh) !== JSON.stringify(path)) {
-        const firstChanged = fresh[0] !== path[0];
-        q.run(`UPDATE armies SET path = ?${firstChanged ? ', next_arrive = NULL' : ''} WHERE id = ?`, JSON.stringify(fresh), a.id);
-        console.log(`Armáda ${a.id}: trasa přepočítána (${path.length} -> ${fresh.length} uzlů)`);
+      if (!path.length || a.route) continue; // route už má = spočítáno novým systémem
+      const m = buildMarch(a.province_id, path[path.length - 1]);
+      if (m && m.path.length) {
+        q.run('UPDATE armies SET path = ?, route = ?, next_arrive = NULL WHERE id = ?', JSON.stringify(m.path), JSON.stringify(m.hops), a.id);
+        console.log(`Armáda ${a.id}: trasa přepočítána po cestách (${m.total} m, ${m.path.length} úseků)`);
       }
     } catch { /* nevadí */ }
   }

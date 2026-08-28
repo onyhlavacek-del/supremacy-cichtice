@@ -344,6 +344,7 @@ function snapshot(player) {
   const myArmies = q.all('SELECT * FROM armies WHERE owner_id = ?', pid).map((a) => ({
     id: a.id, provinceId: a.province_id, units: JSON.parse(a.units), morale: Math.round(a.morale),
     path: a.path ? JSON.parse(a.path) : null, nextArrive: a.next_arrive, departAt: a.depart_delay_until, stance: a.stance,
+    route: a.route ? (() => { try { return JSON.parse(a.route).map((h) => h.p); } catch { return null; } })() : null,
   }));
   const movingForeign = q.all('SELECT * FROM armies WHERE owner_id != ? AND path IS NOT NULL', pid)
     .filter((a) => {
@@ -557,7 +558,7 @@ const routes = {
     if (!a || a.owner_id !== pid) return send(res, 400, { error: 'Armáda nenalezena.' });
     if (!a.path) return send(res, 400, { error: 'Armáda nemá žádný rozkaz.' });
     // vrátí se do výchozího uzlu aktuálního úseku (bezpečné — nikdy neskončí na nepřátelském území)
-    q.run("UPDATE armies SET path = NULL, next_arrive = NULL, depart_delay_until = NULL, stance = 'move' WHERE id = ?", a.id);
+    q.run("UPDATE armies SET path = NULL, route = NULL, next_arrive = NULL, depart_delay_until = NULL, stance = 'move' WHERE id = ?", a.id);
     G.notify(pid, 'order', 'Rozkaz zrušen — armáda se vrátila do posledního uzlu.');
     G.pushRefresh(pid);
     send(res, 200, { ok: true });

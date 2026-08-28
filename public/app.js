@@ -899,12 +899,18 @@ function renderArmy(id) {
     // odhad: zbytek aktuálního úseku + další úseky dle nejpomalejší jednotky
     const speed = Math.min(...Object.entries(a.units).filter(([, v]) => v > 0).map(([k]) => RULES.units[k].speed));
     let ms = a.nextArrive ? Math.max(0, a.nextArrive - Date.now()) : 0;
-    let cur = a.provinceId;
-    const hops = a.nextArrive ? a.path.slice(1) : a.path;
-    if (a.nextArrive) cur = a.path[0];
-    for (const n of hops) {
-      ms += (routeLen(cur, n) / speed) * 3600_000;
-      cur = n;
+    const plen = (pts) => { let l = 0; for (let i = 0; i < pts.length - 1; i++) l += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]); return l; };
+    if (a.route) {
+      const from = a.nextArrive ? 1 : 0;
+      for (let i = from; i < a.route.length; i++) ms += (plen(a.route[i]) / speed) * 3600_000;
+    } else {
+      let cur = a.provinceId;
+      const hops = a.nextArrive ? a.path.slice(1) : a.path;
+      if (a.nextArrive) cur = a.path[0];
+      for (const n of hops) {
+        ms += (routeLen(cur, n) / speed) * 3600_000;
+        cur = n;
+      }
     }
     etaTotal = Date.now() + ms;
   }

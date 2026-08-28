@@ -812,7 +812,7 @@ class TeslaMap {
       let pos = [prov.c[0] + stackOff / this.scale, prov.c[1]];
       let currentRoute = null, frac = 0;
       if (a.path && a.path.length && a.nextArrive) {
-        currentRoute = this._route(a.provinceId, a.path[0]);
+        currentRoute = (a.route && a.route[0] && a.route[0].length > 1) ? a.route[0] : this._route(a.provinceId, a.path[0]);
         if (currentRoute) {
           const total = a.nextArrive - (this._stateAt || Date.now());
           frac = Math.min(1, Math.max(0, 1 - (a.nextArrive - Date.now()) / Math.max(1, total || 1)));
@@ -838,11 +838,17 @@ class TeslaMap {
             else want -= segs[i];
           }
         }
-        let cur = a.path[0];
-        for (let i = 1; i < a.path.length; i++) {
-          const r = this._route(cur, a.path[i]);
-          if (r) restPts.push(...r.slice(1));
-          cur = a.path[i];
+        if (a.route) {
+          // trasa po skutečných cestách: zbývající úseky ze serveru
+          if (!a.nextArrive && a.route[0]) restPts.push(...a.route[0]);
+          for (let i = 1; i < a.route.length; i++) restPts.push(...a.route[i].slice(1));
+        } else {
+          let cur = a.path[0];
+          for (let i = 1; i < a.path.length; i++) {
+            const r = this._route(cur, a.path[i]);
+            if (r) restPts.push(...r.slice(1));
+            cur = a.path[i];
+          }
         }
         if (restPts.length) {
           this._strokeRoute(restPts, pos, color + (isSel ? 'FF' : '88'), isSel ? 4 : 2.5);
