@@ -719,8 +719,7 @@ export function capture(provinceId, newOwnerId) {
   const winner = playerById(newOwnerId);
   if (oldOwner) notify(oldOwner, 'lost', `Ztratil jsi ${prov.name} — dobyl ho ${winner.name}.`);
   notify(null, 'capture', `${winner.name} ${oldOwner ? 'dobyl' : 'obsadil'} ${prov.name}.`);
-  const capXp = (prov.kind === 'house' ? C.EMPIRE.xp.captureHouse : C.EMPIRE.xp.captureNature) + (prov.double ? C.EMPIRE.xp.captureDoubleBonus : 0);
-  addXp(newOwnerId, capXp, 'dobyté území');
+  addXp(newOwnerId, C.EMPIRE.xp.capture, 'dobyté území');
   // varování u kapacity říše: poslední území zdarma / už nad limitem
   {
     const cnt = q.get('SELECT COUNT(*) AS n FROM province_state WHERE owner_id = ?', newOwnerId).n;

@@ -327,10 +327,7 @@ function showBubble(prov, st, wx, wy) {
       <div class="chips"><span class="chip" data-rlabel="${RES_LABEL[prov.resource]}">${RES_ICON[prov.resource]}${RES_LABEL[prov.resource]}${prov.double ? ' 2×' : ''}</span>
       ${prov.kind === 'house' ? `<span class="chip" data-rlabel="Peníze (daně)">${RES_ICON.money}daně</span>` : ''}
       ${(() => { const op = STATE.players.find((p) => p.id === st.owner); return op?.ally ? `<span class="chip" data-rlabel="Aliance">${allyBanner(op.ally, 14)}${op.ally.name || 'aliance'}</span>` : ''; })()}</div>`;
-    if (st.owner !== ME.effId) {
-      const capXp = (prov.kind === 'house' ? RULES.empire.xp.captureHouse : RULES.empire.xp.captureNature) + (prov.double ? RULES.empire.xp.captureDoubleBonus : 0);
-      html += `<p class="sub">Za dobytí: +${capXp} XP${prov.kind !== 'house' && st.owner ? ' a +1 pěšák' : ''}</p>`;
-    }
+    if (st.owner !== ME.effId) html += `<p class="sub">Za dobytí: +${RULES.empire.xp.capture} XP${prov.kind !== 'house' && st.owner ? ' a +1 pěšák' : ''}</p>`;
     if (st.fortress) html += `<p class="sub">Pevnost lvl ${st.fortress}</p>`;
     if (st.hidden) html += `<p class="sub">Posádka skrytá (pevnost)</p>`;
     else if (st.garrison?.length) html += st.garrison.map((g) => `<p class="sub">${ownerName(g.owner)}: ${g.size} jednotek</p>`).join('');
@@ -1371,7 +1368,7 @@ function showInfo(el) {
     return showInfoHtml(el, `<b>Úroveň říše ${emp.level}</b>
       <p class="sub"><b>${emp.into} / ${emp.need} XP</b> do další úrovně.</p>
       <p class="sub">Určuje, kolik území udržíš bez postihu: teď ${emp.capacity}. Nad kapacitu jde dobývat dál, ale morálka VŠECH tvých území klesá o 8 za každé území navíc.</p>
-      <p class="sub"><b>XP získáš:</b> vylepšení přírody +15, stavba +20, dobytí domu +15 / přírody +8 (dvojité ložisko +4), vyhraná bitva +25, kopec +10, město +15, každý ušlý km +2.</p>`);
+      <p class="sub"><b>XP získáš:</b> vylepšení přírody +15, stavba +20, dobytí +10, vyhraná bitva +25, kopec +10, město +15, každý ušlý km +2.</p>`);
   }
   const provId = +el.dataset.prov;
   const prov = MAPDATA.provinces.find((p) => p.id === provId);

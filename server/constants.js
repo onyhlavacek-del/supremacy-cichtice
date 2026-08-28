@@ -185,7 +185,7 @@ export const EMPIRE = {
   capacityPerLevel: 4,    // každý další level +4
   overCapMoralePer: 8,    // −rovnováha morálky za každé území nad kapacitu (28. 8. večer zpřísněno z 5)
   levelStep: 120,         // n-tý level stojí n × 120 XP
-  xp: { upgrade: 15, building: 20, hill: 10, town: 15, battleWon: 25, captureHouse: 15, captureNature: 8, captureDoubleBonus: 4, perKmWalked: 2 },
+  xp: { upgrade: 15, building: 20, hill: 10, town: 15, battleWon: 25, capture: 10, perKmWalked: 2 },
 };
 export function levelFor(xp) {
   let lvl = 1, need = EMPIRE.levelStep, rest = xp;
