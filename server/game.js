@@ -228,7 +228,9 @@ export function findPath(fromId, toId, avoidPonds = true) {
     for (const n of p.adjacent || []) {
       if (!provinces.has(n)) continue;
       if (avoidPonds && n !== toId && provinces.get(n).kind === 'pond') continue; // vojáci neplavou — rybník jen jako cíl
-      const d = dist.get(cur) + hopLen(cur, n);
+      // terén bez cesty je při VÝBĚRU trasy dražší (1.6×) — jinak vzdušné zkratky
+      // vyhrávají nad silnicí a armáda se klikatí přes vesnici
+      const d = dist.get(cur) + hopLen(cur, n) * (routeBetween(cur, n) ? 1 : 1.6);
       if (d < (dist.get(n) ?? Infinity)) { dist.set(n, d); prev.set(n, cur); open.add(n); }
     }
   }
@@ -655,18 +657,17 @@ export function applyPresenceBoosts(player) {
 // úklid: aliance bez členů smaž
 q.run('DELETE FROM alliances WHERE id NOT IN (SELECT DISTINCT alliance_id FROM alliance_members)');
 
-// při startu: armádám s trasou přes rybník (staré rozkazy) trasu přepočítej
+// při startu: trasy pochodujících armád přepočítej novým algoritmem (změní se jen když je nová lepší)
 {
   for (const a of q.all('SELECT id, province_id, path FROM armies WHERE path IS NOT NULL')) {
     try {
       const path = JSON.parse(a.path);
-      const transitsPond = path.slice(0, -1).some((id) => provinces.get(id)?.kind === 'pond');
-      if (!transitsPond || !path.length) continue;
-      const target = path[path.length - 1];
-      const fresh = findPath(a.province_id, target);
-      if (fresh && fresh.length) {
-        q.run('UPDATE armies SET path = ?, next_arrive = NULL WHERE id = ?', JSON.stringify(fresh), a.id);
-        console.log(`Armáda ${a.id}: trasa přepočítána mimo rybník (${path.length} -> ${fresh.length} uzlů)`);
+      if (!path.length) continue;
+      const fresh = findPath(a.province_id, path[path.length - 1]);
+      if (fresh && fresh.length && JSON.stringify(fresh) !== JSON.stringify(path)) {
+        const firstChanged = fresh[0] !== path[0];
+        q.run(`UPDATE armies SET path = ?${firstChanged ? ', next_arrive = NULL' : ''} WHERE id = ?`, JSON.stringify(fresh), a.id);
+        console.log(`Armáda ${a.id}: trasa přepočítána (${path.length} -> ${fresh.length} uzlů)`);
       }
     } catch { /* nevadí */ }
   }
