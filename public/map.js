@@ -758,15 +758,27 @@ class TeslaMap {
     this.armyHits = [];
     const provById = new Map(this.data.provinces.map((p) => [p.id, p]));
     // praporek se špičkou dolů jako v Supremacy 1914
-    const drawDot = (x, y, color, size, moving) => {
+    const UNIT_PIC = { infantry: 'pechota', cavalry: 'kavalerie', armoredcar: 'obrnene-auto', artillery: 'delo', tank: 'tank', heavytank: 'tezky-tank' };
+    const drawDot = (x, y, color, size, moving, unitImg = 'pechota') => {
       const px = this.sx(x), py = this.sy(y);
+      // obrázek vojáka "stojí" na místě, praporek s počtem nad ním
+      let lift = 0;
+      if (unitImg && this.scale > 0.35) {
+        const im = this._img(unitImg);
+        const isz = Math.min(36, Math.max(22, this.scale * 18));
+        if (im) {
+          ctx.drawImage(im, px - isz / 2, py - isz, isz, isz);
+          lift = isz - 6;
+        }
+      }
+      const by = py - lift;
       const w = Math.max(24, 10 + String(size).length * 8), h = 16, tip = 7;
       ctx.beginPath();
-      ctx.moveTo(px - w / 2, py - h - tip);
-      ctx.lineTo(px + w / 2, py - h - tip);
-      ctx.lineTo(px + w / 2, py - tip);
-      ctx.lineTo(px, py);
-      ctx.lineTo(px - w / 2, py - tip);
+      ctx.moveTo(px - w / 2, by - h - tip);
+      ctx.lineTo(px + w / 2, by - h - tip);
+      ctx.lineTo(px + w / 2, by - tip);
+      ctx.lineTo(px, by);
+      ctx.lineTo(px - w / 2, by - tip);
       ctx.closePath();
       ctx.fillStyle = color;
       ctx.fill();
@@ -776,7 +788,7 @@ class TeslaMap {
       ctx.fillStyle = '#fff';
       ctx.font = '700 10.5px -apple-system, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(size), px, py - tip - h / 2 + 0.5);
+      ctx.fillText(String(size), px, by - tip - h / 2 + 0.5);
       if (moving) {
         ctx.beginPath();
         ctx.arc(px, py + 3, 4, 0, Math.PI * 2);
@@ -857,7 +869,8 @@ class TeslaMap {
         ctx.lineWidth = 2;
         ctx.stroke();
       }
-      drawDot(pos[0], pos[1], this.ownerColor(this.state.me.effId), size, !!a.path);
+      const dom = Object.entries(a.units).filter(([, n]) => n > 0).sort((u, v) => v[1] - u[1])[0];
+      drawDot(pos[0], pos[1], this.ownerColor(this.state.me.effId), size, !!a.path, UNIT_PIC[dom?.[0]] || 'pechota');
       this.armyHits.push({ id: a.id, px: this.sx(pos[0]), py: this.sy(pos[1]) - 14 });
     }
     // cizí garnizony (viditelné)
