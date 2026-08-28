@@ -493,6 +493,13 @@ export function capture(provinceId, newOwnerId) {
   if (oldOwner) notify(oldOwner, 'lost', `Ztratil jsi ${prov.name} — dobyl ho ${winner.name}.`);
   notify(null, 'capture', `${winner.name} ${oldOwner ? 'dobyl' : 'obsadil'} ${prov.name}.`);
   addXp(newOwnerId, C.EMPIRE.xp.capture, 'dobyté území');
+  // varování u kapacity říše: poslední území zdarma / už nad limitem
+  {
+    const cnt = q.get('SELECT COUNT(*) AS n FROM province_state WHERE owner_id = ?', newOwnerId).n;
+    const cap = C.capacityFor(C.levelFor(playerById(newOwnerId)?.xp || 0).lvl);
+    if (cnt === cap) notify(newOwnerId, 'capacity', `Dosáhl jsi kapacity říše (${cap} území) — DALŠÍ dobyté území už bude srážet morálku všech tvých území. Získej XP na další úroveň.`);
+    else if (cnt > cap) notify(newOwnerId, 'capacity', `Jsi nad kapacitou říše (${cnt}/${cap}) — morálka všech tvých území klesá o ${(cnt - cap) * C.EMPIRE.overCapMoralePer}.`);
+  }
   // dobytí přírody (bez domu = bez kasáren) od jiného hráče: odměna 1 pěšák na místě
   if (oldOwner && oldOwner !== newOwnerId && prov.kind !== 'house') {
     addUnits(newOwnerId, provinceId, 'infantry', 1);
