@@ -56,6 +56,61 @@ for (const r of q.all('SELECT * FROM province_custom')) {
   });
 }
 
+// doplnění sousedností: mapová data místy sousednost vynechala, i když parcely
+// dělí jen cesta či mez (existující hrany mají mezery klidně 190 m). Parcely
+// s mezerou do 110 m spojíme — pokud spojnice středů nevede přes rybník.
+{
+  const segDist = (pt, a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const l2 = dx * dx + dy * dy || 1;
+    let t = ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(pt[0] - (a[0] + t * dx), pt[1] - (a[1] + t * dy));
+  };
+  const polyGap = (A, B, limit) => {
+    let best = Infinity;
+    for (const pt of A) for (let i = 0; i < B.length - 1; i++) {
+      best = Math.min(best, segDist(pt, B[i], B[i + 1]));
+      if (best <= limit) return best;
+    }
+    for (const pt of B) for (let i = 0; i < A.length - 1; i++) {
+      best = Math.min(best, segDist(pt, A[i], A[i + 1]));
+      if (best <= limit) return best;
+    }
+    return best;
+  };
+  const ccw = (a, b, c) => (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0]);
+  const segInt = (a, b, c, d) => ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d);
+  const crossesRing = (a, b, ring) => {
+    for (let i = 0; i < ring.length - 1; i++) if (segInt(a, b, ring[i], ring[i + 1])) return true;
+    return false;
+  };
+  const MAXGAP = 110;
+  const list = [...provinces.values()];
+  const box = new Map();
+  for (const p of list) {
+    let x0 = 1e12, y0 = 1e12, x1 = -1e12, y1 = -1e12;
+    for (const [x, y] of p.poly) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y; }
+    box.set(p.id, [x0, y0, x1, y1]);
+  }
+  const ponds = list.filter((p) => p.kind === 'pond');
+  let added = 0;
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const A = list[i], B = list[j];
+      if ((A.adjacent || []).includes(B.id)) continue;
+      const [ax0, ay0, ax1, ay1] = box.get(A.id), [bx0, by0, bx1, by1] = box.get(B.id);
+      if (ax0 - MAXGAP > bx1 || bx0 - MAXGAP > ax1 || ay0 - MAXGAP > by1 || by0 - MAXGAP > ay1) continue;
+      if (polyGap(A.poly, B.poly, MAXGAP) > MAXGAP) continue;
+      if (ponds.some((pd) => pd.id !== A.id && pd.id !== B.id && crossesRing(A.c, B.c, pd.poly))) continue;
+      A.adjacent = [...(A.adjacent || []), B.id];
+      B.adjacent = [...(B.adjacent || []), A.id];
+      added++;
+    }
+  }
+  console.log(`Sousednosti doplněny: +${added} hran (mezera do ${MAXGAP} m, rybníky respektovány).`);
+}
+
 // pozice školy: meta override > dům čp. 91 > střed vesnice
 {
   const mx = metaGet('school_x'), my = metaGet('school_y');
