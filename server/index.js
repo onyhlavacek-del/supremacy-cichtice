@@ -197,6 +197,18 @@ function fairSplit(poly) {
   }
 }
 
+// jednorázově (28. 8. 2026 večer, pokyn Matěje): 3 Lukášova území srazit na morálku 25
+if (!metaGet('lukas_moral25_2808')) {
+  const lukas = q.get("SELECT id, home_id, capital_id FROM players WHERE name = 'Lukáš Liščák'");
+  if (lukas) {
+    const terr = q.all('SELECT id, morale FROM province_state WHERE owner_id = ? AND id != ? AND id != ? ORDER BY morale ASC LIMIT 3',
+      lukas.id, lukas.home_id || -1, lukas.capital_id || -1);
+    for (const t of terr) q.run('UPDATE province_state SET morale = 25 WHERE id = ?', t.id);
+    if (terr.length) console.log(`Lukášovi sražena morálka na 25 u ${terr.length} území (${terr.map((t) => t.id).join(', ')}).`);
+  }
+  metaSet('lukas_moral25_2808', '1');
+}
+
 // migrace: přepočítej existující rozdělené domy na férové poloviny (idempotentní)
 {
   const rawProv = JSON.parse(readFileSync(join(ROOT, 'data', 'map', 'provinces.json'), 'utf8'));
@@ -986,6 +998,23 @@ const routes = {
     q.run('UPDATE players SET login_alias = COALESCE(login_alias, name), name = ? WHERE id = ?', nm, +playerId);
     G.pushRefresh();
     send(res, 200, { ok: true });
+  },
+  // správcovský zásah: změna vlastníka území podle názvu (prázdný hráč = zneutralizovat)
+  'POST /api/admin/set-owner': async (req, res, player) => {
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
+    const { provinceName, playerId } = await readBody(req);
+    const nm = String(provinceName || '').trim().toLowerCase();
+    const prov = [...G.provinces.values()].find((p) => p.name.toLowerCase() === nm);
+    if (!prov) return send(res, 400, { error: 'Území s tímhle názvem neexistuje (piš přesně, např. „Pole 39").' });
+    const pid = playerId ? +playerId : null;
+    if (pid && !G.playerById(pid)) return send(res, 400, { error: 'Hráč s tímhle číslem neexistuje.' });
+    const st = q.get('SELECT owner_id FROM province_state WHERE id = ?', prov.id);
+    q.run('UPDATE province_state SET owner_id = ?, morale = ?, captured_ts = NULL, build_kind = NULL, build_until = NULL WHERE id = ?',
+      pid, pid ? 60 : 45, prov.id);
+    if (st?.owner_id && st.owner_id !== pid) G.notify(st.owner_id, 'admin', `Správce hry upravil vlastnictví: ${prov.name} už není tvoje.`);
+    if (pid) G.notify(pid, 'admin', `Správce hry ti přiřadil území ${prov.name}.`);
+    G.pushRefresh();
+    send(res, 200, { ok: true, provinceId: prov.id, owner: pid });
   },
   'POST /api/admin/set-color': async (req, res, player) => {
     if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });

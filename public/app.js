@@ -1162,6 +1162,14 @@ function bindSheetActions(root) {
       if (act === 'admin') renderAdmin();
       if (act === 'feedback') $('#dlg-feedback').classList.remove('hidden');
       if (act === 'admin-refresh') renderAdmin();
+      if (act === 'admin-neutral' || act === 'admin-assign') {
+        const nm2 = $('#adm-prov-name').value.trim();
+        const own = act === 'admin-assign' ? +$('#adm-prov-owner').value || null : null;
+        if (!nm2) { toast('Napiš název území.'); return; }
+        if (act === 'admin-assign' && !own) { toast('Napiš číslo hráče.'); return; }
+        const r = await api('/api/admin/set-owner', { provinceName: nm2, playerId: own });
+        if (r.ok) { toast(own ? 'Území přiřazeno.' : 'Území zneutralizováno.'); renderAdmin(); }
+      }
       if (act === 'admin-rename') {
         const nm = prompt(`Nové jméno pro ${el.dataset.name} (přihlašovat se bude dál postaru):`);
         if (nm) { const r = await api('/api/admin/rename', { playerId: +el.dataset.id, newName: nm }); if (r.ok) { toast('Přejmenováno.'); renderAdmin(); } }
@@ -1349,6 +1357,14 @@ async function renderAdmin() {
       </div></div>`;
   }
   if (d.battles.length) { html += '<h3>Bitvy</h3>'; for (const b of d.battles) html += `<div class="row"><span>${b.name}</span><span class="meta">od ${fmtT(b.started)}</span></div>`; }
+  html += `<h3>Území (zásah správce)</h3>
+    <div class="inline"><input id="adm-prov-name" placeholder="Název území (např. Pole 39)"></div>
+    <div class="inline"><input id="adm-prov-owner" type="number" placeholder="Číslo hráče (prázdné = zneutralizovat)"></div>
+    <div class="btn-row">
+      <button class="btn small danger" data-act="admin-neutral">Zneutralizovat</button>
+      <button class="btn small" data-act="admin-assign">Přiřadit hráči</button>
+    </div>
+    <p class="sub">Čísla hráčů vidíš v přehledu výš (#1, #2…). Pro opravy bugů s dobýváním.</p>`;
   html += '<h3>Poslední události (všichni)</h3>';
   for (const e of d.events) html += `<div class="row"><span style="font-size:12.5px">${e.text}</span><span class="meta">${fmtT(e.ts)}</span></div>`;
   html += '<h3>Deník záloh</h3>';
