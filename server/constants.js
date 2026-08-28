@@ -183,7 +183,7 @@ export const upgradeCost = (def, targetLvl) => {
 export const EMPIRE = {
   capacityBase: 8,        // level 1 udrží 8 území bez postihu
   capacityPerLevel: 4,    // každý další level +4
-  overCapMoralePer: 5,    // −rovnováha morálky za každé území nad kapacitu
+  overCapMoralePer: 8,    // −rovnováha morálky za každé území nad kapacitu (28. 8. večer zpřísněno z 5)
   levelStep: 120,         // n-tý level stojí n × 120 XP
   xp: { upgrade: 15, building: 20, hill: 10, town: 15, battleWon: 25, capture: 10, perKmWalked: 2 },
 };

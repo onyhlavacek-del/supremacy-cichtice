@@ -1067,7 +1067,7 @@ function renderEmpire() {
   const over = (my?.provinceCount || 0) - emp.capacity;
   html += `<div class="row lvl-row" data-info="empire" style="--pct:${Math.min(100, Math.round(emp.into / emp.need * 100))}%"><span class="info-u">Úroveň říše</span><b>${emp.level}</b></div>`;
   html += `<div class="row"><span>Území</span><b style="color:${over > 0 ? '#C62828' : 'inherit'}">${my?.provinceCount || 0} / ${emp.capacity}</b></div>`;
-  if (over > 0) html += `<p class="sub" style="color:#C62828">Držíš ${over} území nad kapacitu — morálka všech území klesá o ${over * 5}. Získej XP (stavby, vylepšení, výpravy) na další úroveň.</p>`;
+  if (over > 0) html += `<p class="sub" style="color:#C62828">Držíš ${over} území nad kapacitu — morálka všech území klesá o ${over * 8}. Získej XP (stavby, vylepšení, výpravy) na další úroveň.</p>`;
   if (STATE.winner) html += `<div class="row"><b>Vítěz hry: ${STATE.winner}</b></div>`;
   // vzdělání
   html += '<h3>Vzdělání (škola)</h3>';
@@ -1366,7 +1366,7 @@ function showInfo(el) {
     const emp = ME.empire;
     return showInfoHtml(el, `<b>Úroveň říše ${emp.level}</b>
       <p class="sub"><b>${emp.into} / ${emp.need} XP</b> do další úrovně.</p>
-      <p class="sub">Určuje, kolik území udržíš bez postihu: teď ${emp.capacity}. Nad kapacitu jde dobývat dál, ale morálka VŠECH tvých území klesá o 5 za každé území navíc.</p>
+      <p class="sub">Určuje, kolik území udržíš bez postihu: teď ${emp.capacity}. Nad kapacitu jde dobývat dál, ale morálka VŠECH tvých území klesá o 8 za každé území navíc.</p>
       <p class="sub"><b>XP získáš:</b> vylepšení přírody +15, stavba +20, dobytí +10, vyhraná bitva +25, kopec +10, město +15, každý ušlý km +2.</p>`);
   }
   const provId = +el.dataset.prov;
