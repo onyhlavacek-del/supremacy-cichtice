@@ -286,8 +286,13 @@ function balances(pid) {
 function snapshot(player) {
   const pid = G.effId(player);
   const now = Date.now();
+  const teamNames = new Map();
+  for (const t of q.all('SELECT id, name, team_with FROM players WHERE team_with IS NOT NULL')) {
+    teamNames.set(t.team_with, [...(teamNames.get(t.team_with) || []), t.name]);
+  }
   const players = q.all('SELECT id, name, color, capital_id, team_with FROM players').map((p) => ({
     id: p.id, name: p.name, color: p.color, capitalId: p.capital_id, teamWith: p.team_with,
+    display: teamNames.has(p.id) ? [p.name, ...teamNames.get(p.id)].join(' + ') : p.name,
     provinceCount: q.get('SELECT COUNT(*) AS n FROM province_state WHERE owner_id = ?', p.id).n,
     unitCount: q.all('SELECT units FROM armies WHERE owner_id = ?', p.id)
       .reduce((s, a) => s + G.armySize(JSON.parse(a.units)), 0),
@@ -877,6 +882,15 @@ const routes = {
       boot: new Date(BOOT_TS).toISOString(),
       gameStart: +metaGet('game_start', 0),
     });
+  },
+  'POST /api/admin/set-color': async (req, res, player) => {
+    if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });
+    const { playerId, color } = await readBody(req);
+    if (!/^#[0-9A-Fa-f]{6}$/.test(String(color || ''))) return send(res, 400, { error: 'Barva musí být ve tvaru #RRGGBB.' });
+    if (!G.playerById(+playerId)) return send(res, 400, { error: 'Hráč neexistuje.' });
+    q.run('UPDATE players SET color = ? WHERE id = ?', color, +playerId);
+    G.pushRefresh();
+    send(res, 200, { ok: true });
   },
   'POST /api/admin/delete-player': async (req, res, player) => {
     if (!isAdmin(player)) return send(res, 403, { error: 'Jen admin.' });

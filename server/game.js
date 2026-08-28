@@ -134,6 +134,11 @@ export function siblingPeaceActive(aId, bId) {
   const now = Date.now();
   return (pa?.sibling_with === bId && pa.sibling_until > now) || (pb?.sibling_with === aId && pb.sibling_until > now);
 }
+export function siblingProtected(attackerId, ownerId, provinceId) {
+  if (!siblingPeaceActive(attackerId, ownerId)) return false;
+  const pa = playerById(attackerId), po = playerById(ownerId);
+  return provinceId === pa?.home_id || provinceId === po?.home_id;
+}
 export function presenceAt(playerId, provinceId) {
   const pr = q.get('SELECT * FROM presence WHERE player_id = ?', playerId);
   if (!pr || Date.now() - pr.ts > C.PRESENCE_TTL_MIN * 60_000) return false;
@@ -245,7 +250,7 @@ export function orderMove(player, armyId, destId, stance) {
   const destOwner = q.get('SELECT owner_id FROM province_state WHERE id = ?', destId)?.owner_id;
   if (destOwner && !allied(pid, destOwner)) {
     if (stance !== 'attack') return { error: 'Cíl patří nepříteli — pošli armádu jako útok.' };
-    if (siblingPeaceActive(pid, destOwner)) return { error: 'Ochranná lhůta: na sourozence zatím nemůžeš útočit.' };
+    if (siblingProtected(pid, destOwner, destId)) return { error: 'Ochranná lhůta: na společný dům zatím nemůžeš útočit.' };
     if (pactActive(pid, destOwner)) return { error: 'Máte mír — nejdřív ho musíš vypovědět (Diplomacie).' };
   }
   // vzdálený rozkaz: příprava podle délky trasy; fyzická přítomnost u armády = vyráží hned
@@ -338,7 +343,7 @@ export function battleSides(provinceId) {
     if (st.owner_id && allied(a.owner_id, st.owner_id)) defenders.push(a);
     else if (!st.owner_id || !allied(a.owner_id, st.owner_id)) {
       // sourozenci v ochranné lhůtě a mírové pakty NIKDY neútočí (ani průchodem)
-      if (st.owner_id && (siblingPeaceActive(a.owner_id, st.owner_id) || pactActive(a.owner_id, st.owner_id))) continue;
+      if (st.owner_id && (siblingProtected(a.owner_id, st.owner_id, provinceId) || pactActive(a.owner_id, st.owner_id))) continue;
       if (a.stance === 'attack') attackers.push(a);
     }
   }
@@ -456,7 +461,7 @@ function processArmies(now) {
           q.run('UPDATE armies SET path = NULL WHERE id = ?', a.id); // boj přeruší pochod
           if (!st.owner_id || hostile ? true : enemyArmies.length) startBattleIfNeeded(arrivedId);
           if (!st.owner_id && !enemyArmies.length) capture(arrivedId, a.owner_id);
-        } else if (hostile && !siblingPeaceActive(a.owner_id, st.owner_id) && !pactActive(a.owner_id, st.owner_id)) {
+        } else if (hostile && !siblingProtected(a.owner_id, st.owner_id, arrivedId) && !pactActive(a.owner_id, st.owner_id)) {
           // pochod přes nepřátelské území bez útoku: boj se stejně spustí (viz sekce 5)
           q.run("UPDATE armies SET path = NULL, stance = 'attack' WHERE id = ?", a.id);
           startBattleIfNeeded(arrivedId);
@@ -609,9 +614,9 @@ export function checkVictory() {
       return;
     }
   }
-  // konec na čas: po uplynutí délky partie vyhrává, kdo má nejvíc území
+  // konec na čas: po uplynutí délky partie vyhrává, kdo má nejvíc území (0 = bez limitu)
   const start = +metaGet('game_start', Date.now());
-  if (Date.now() - start >= C.GAME_LENGTH_DAYS * 86400_000 && counts.length) {
+  if (C.GAME_LENGTH_DAYS > 0 && Date.now() - start >= C.GAME_LENGTH_DAYS * 86400_000 && counts.length) {
     counts.sort((a, b) => b.n - a.n);
     metaSet('winner', counts[0].pl.name);
     notify(null, 'victory', `Partie skončila po ${C.GAME_LENGTH_DAYS} dnech — vítězí ${counts[0].pl.name} s ${counts[0].n} územími!`);

@@ -388,6 +388,13 @@ function updateTabs() {
 // ---------- menu (tři čárky): žebříček / chat / diplomacie ----------
 let drawerTab = 'board';
 let lastChatSeen = 0;
+$('#refresh-btn').onclick = async () => {
+  const el = $('#refresh-btn');
+  el.style.transform = 'rotate(360deg)';
+  await refreshState();
+  toast('Aktualizováno.');
+  setTimeout(() => { el.style.transform = ''; }, 400);
+};
 $('#menu-btn').onclick = () => {
   $('#drawer').classList.remove('hidden');
   $('#drawer-overlay').classList.remove('hidden');
@@ -422,7 +429,7 @@ function renderDrawer() {
     const board = STATE.players.filter((p) => !p.teamWith)
       .sort((a, b) => (b.provinceCount - a.provinceCount) || (b.unitCount - a.unitCount));
     board.forEach((p, i) => {
-      html += `<div class="row"><span><b>${i + 1}.</b> ${ownerDot(p.id)} ${p.name}</span>
+      html += `<div class="row"><span><b>${i + 1}.</b> ${ownerDot(p.id)} ${p.display || p.name}</span>
         <span class="meta">${p.provinceCount} území · ${p.unitCount} vojáků</span></div>`;
     });
   } else if (drawerTab === 'chat') {
@@ -496,7 +503,8 @@ function renderSheet() {
 
 function ownerName(id) {
   if (!id) return 'volné území';
-  return STATE.players.find((p) => p.id === id)?.name || '?';
+  const p = STATE.players.find((p) => p.id === id);
+  return p?.display || p?.name || '?';
 }
 function ownerDot(id) {
   const c = STATE.players.find((p) => p.id === id)?.color || '#8B877F';
@@ -519,9 +527,12 @@ function showRtip(el, autohide) {
   const r = el.getBoundingClientRect();
   // v horní liště ukaž i rozpad: produkce vs. spotřeba za hodinu
   const flow = el.dataset.res && ME?.resFlow;
-  if (el.dataset.day && STATE?.gameStart && RULES?.gameLengthDays) {
+  if (el.dataset.day && STATE?.gameStart) {
     if (STATE.winner) {
       rtip.innerHTML = `<b>Partie skončila</b><br>Vítěz: ${STATE.winner}`;
+    } else if (!RULES?.gameLengthDays) {
+      rtip.innerHTML = `<b>Den ${Math.floor((Date.now() - STATE.gameStart) / 86400_000) + 1}</b><br>
+        <span style="opacity:.75">bez časového limitu — vyhrává,<br>kdo ovládne ${Math.round((RULES?.victoryShare || 0.6) * 100)} % mapy</span>`;
     } else {
       const end = STATE.gameStart + RULES.gameLengthDays * 86400_000;
       const ms = Math.max(0, end - Date.now());
@@ -1027,6 +1038,13 @@ function bindSheetActions(root) {
       if (act === 'tutorial') showTutorial(0);
       if (act === 'admin') renderAdmin();
       if (act === 'admin-refresh') renderAdmin();
+      if (act === 'admin-color') {
+        const color = prompt(`Nová barva hráče ${el.dataset.name} (#RRGGBB):\nmodrá #1565C0 · zelená #2E7D32 · fialová #6A1B9A · oranžová #EF6C00 · tyrkys #00838F`, '#1565C0');
+        if (color) {
+          const r = await api('/api/admin/set-color', { playerId: +el.dataset.id, color: color.trim() });
+          if (r.ok) { toast('Barva změněna.'); refreshState(); renderAdmin(); }
+        }
+      }
       if (act === 'tab-empire') { activeTab = 'empire'; updateTabs(); renderSheet(); }
       if (act === 'admin-delete') {
         if (confirm(`Opravdu smazat hráče ${el.dataset.name}? Uvolní se jeho území, armády i vše ostatní. Nejde vrátit.`)) {
@@ -1108,6 +1126,7 @@ async function renderAdmin() {
       <span class="meta">registrace ${fmtT(p.created)} · naposledy GPS ${fmtT(p.lastSeen)} · přihlášení: ${p.sessions}</span></div>
       <div class="prod-right" style="flex-direction:column;gap:4px">
         <button class="btn small ghost" data-act="admin-give" data-id="${p.id}" data-name="${p.name}">+ suroviny</button>
+        <button class="btn small ghost" data-act="admin-color" data-id="${p.id}" data-name="${p.name}">Barva</button>
         ${p.id !== ME.id ? `<button class="btn small danger" data-act="admin-delete" data-id="${p.id}" data-name="${p.name}">Smazat</button>` : ''}
       </div></div>`;
   }
@@ -1201,6 +1220,7 @@ async function enterGame() {
   $('#topbar').classList.remove('hidden');
   $('#tabs').classList.remove('hidden');
   $('#menu-btn').classList.remove('hidden');
+  $('#refresh-btn').classList.remove('hidden');
   requestAnimationFrame(() => updateTabs());
   await loadMapData(); // čerstvá mapa (rozdělené domy po registraci)
   await refreshState();

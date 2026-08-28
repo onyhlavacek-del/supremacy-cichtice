@@ -188,4 +188,4 @@ export const COMBAT = { moraleFactorMin: 0.55, randomSpread: 0.25, damagedUnitMi
 
 // Vítězství: 60 % všech provincií, NEBO nejvíc území po uplynutí délky partie (tempo B)
 export const VICTORY_PROVINCE_SHARE = 0.6;
-export const GAME_LENGTH_DAYS = 14;
+export const GAME_LENGTH_DAYS = 0; // 0 = bez časového limitu (dle Matěje 28. 8.)

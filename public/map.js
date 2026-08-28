@@ -778,13 +778,20 @@ class TeslaMap {
         ctx.fill();
       }
     };
-    // vlastní armády — pochodují po cestách, klikací
+    // vlastní armády — pochodují po cestách, klikací; stojící na stejném místě se rozestoupí
+    const standCount = new Map();
     for (const a of this.state.armies || []) {
       const size = Object.values(a.units).reduce((s, v) => s + v, 0);
       if (!size) continue;
       const prov = provById.get(a.provinceId);
       if (!prov) continue;
-      let pos = [prov.c[0], prov.c[1]];
+      let stackOff = 0;
+      if (!a.path) {
+        const n = standCount.get(a.provinceId) || 0;
+        standCount.set(a.provinceId, n + 1);
+        stackOff = n * 30; // px doprava za každou další armádu
+      }
+      let pos = [prov.c[0] + stackOff / this.scale, prov.c[1]];
       let currentRoute = null, frac = 0;
       if (a.path && a.path.length && a.nextArrive) {
         currentRoute = this._route(a.provinceId, a.path[0]);
