@@ -712,10 +712,15 @@ class TeslaMap {
   _route(aId, bId) {
     const key = aId < bId ? `${aId}-${bId}` : `${bId}-${aId}`;
     const pts = this.data?.routes?.[key];
-    if (!pts) {
-      const a = this.data.provinces.find((p) => p.id === aId), b = this.data.provinces.find((p) => p.id === bId);
-      return a && b ? [a.c, b.c] : null;
+    const a = this.data.provinces.find((p) => p.id === aId), b = this.data.provinces.find((p) => p.id === bId);
+    const straight = a && b ? Math.hypot(a.c[0] - b.c[0], a.c[1] - b.c[1]) : 0;
+    if (pts && straight) {
+      // stejné pravidlo jako server: silnice jen když nezachází o >30 %
+      let rl = 0;
+      for (let i = 0; i < pts.length - 1; i++) rl += Math.hypot(pts[i][0] - pts[i + 1][0], pts[i][1] - pts[i + 1][1]);
+      if (rl > 1.3 * straight) return [a.c, b.c];
     }
+    if (!pts) return a && b ? [a.c, b.c] : null;
     return aId < bId ? pts : pts.slice().reverse();
   }
   _pointAlong(pts, frac) {

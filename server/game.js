@@ -27,11 +27,22 @@ export function polylineLen(pts) {
   for (let i = 0; i < pts.length - 1; i++) l += Math.hypot(pts[i][0] - pts[i + 1][0], pts[i][1] - pts[i + 1][1]);
   return l;
 }
-export function hopLen(aId, bId) {
-  const r = routeBetween(aId, bId);
-  if (r) return polylineLen(r);
+// silnici má smysl použít, jen když není o >30 % delší než vzdušná čára —
+// jinak vojáci seknou roh přes terén (louky/pole jsou průchozí)
+const ROAD_DETOUR_MAX = 1.3;
+function straightLen(aId, bId) {
   const a = provinces.get(aId), b = provinces.get(bId);
   return a && b ? Math.hypot(a.c[0] - b.c[0], a.c[1] - b.c[1]) : 0;
+}
+export function hopUsesRoad(aId, bId) {
+  const r = routeBetween(aId, bId);
+  if (!r) return false;
+  const st = straightLen(aId, bId);
+  return !st || polylineLen(r) <= ROAD_DETOUR_MAX * st;
+}
+export function hopLen(aId, bId) {
+  if (hopUsesRoad(aId, bId)) return polylineLen(routeBetween(aId, bId));
+  return straightLen(aId, bId);
 }
 
 export const provinces = new Map(); // id -> statická data (vč. custom z rozdělených domů)
@@ -216,7 +227,7 @@ export function armySpeed(units) {
 }
 
 // nejkratší cesta grafem (Dijkstra dle vzdálenosti centroidů)
-export function findPath(fromId, toId, avoidPonds = true) {
+export function findPath(fromId, toId, pid = null, avoidPonds = true) {
   if (fromId === toId) return [];
   const dist = new Map([[fromId, 0]]), prev = new Map(), open = new Set([fromId]);
   while (open.size) {
@@ -228,13 +239,19 @@ export function findPath(fromId, toId, avoidPonds = true) {
     for (const n of p.adjacent || []) {
       if (!provinces.has(n)) continue;
       if (avoidPonds && n !== toId && provinces.get(n).kind === 'pond') continue; // vojáci neplavou — rybník jen jako cíl
-      // terén bez cesty je při VÝBĚRU trasy dražší (1.6×) — jinak vzdušné zkratky
-      // vyhrávají nad silnicí a armáda se klikatí přes vesnici
-      const d = dist.get(cur) + hopLen(cur, n) * (routeBetween(cur, n) ? 1 : 1.6);
+      // terén je při VÝBĚRU trasy mírně dražší než silnice; průchod cizím
+      // územím se armádám nelíbí (1.4×) — když existuje srovnatelná trasa
+      // po vlastním/neutrálním, vezmou ji
+      let f = hopUsesRoad(cur, n) ? 1 : 1.25;
+      if (pid != null && n !== toId) {
+        const o = q.get('SELECT owner_id FROM province_state WHERE id = ?', n)?.owner_id;
+        if (o && o !== pid) f *= 1.4;
+      }
+      const d = dist.get(cur) + hopLen(cur, n) * f;
       if (d < (dist.get(n) ?? Infinity)) { dist.set(n, d); prev.set(n, cur); open.add(n); }
     }
   }
-  if (!prev.has(toId)) return avoidPonds ? findPath(fromId, toId, false) : null; // nouzově i přes rybník
+  if (!prev.has(toId)) return avoidPonds ? findPath(fromId, toId, pid, false) : null; // nouzově i přes rybník
   const path = [];
   for (let at = toId; at !== fromId; at = prev.get(at)) path.unshift(at);
   return path;
@@ -248,7 +265,7 @@ export function orderMove(player, armyId, destId, stance) {
   if (!provinces.has(destId)) return { error: 'Neplatný cíl.' };
   const units = JSON.parse(a.units);
   if (armySize(units) === 0) return { error: 'Armáda je prázdná.' };
-  const path = findPath(a.province_id, destId);
+  const path = findPath(a.province_id, destId, pid);
   if (!path || !path.length) return { error: 'Cesta nenalezena.' };
   const destOwner = q.get('SELECT owner_id FROM province_state WHERE id = ?', destId)?.owner_id;
   if (destOwner && destOwner !== pid && allied(pid, destOwner) && stance === 'attack') {
@@ -659,11 +676,11 @@ q.run('DELETE FROM alliances WHERE id NOT IN (SELECT DISTINCT alliance_id FROM a
 
 // při startu: trasy pochodujících armád přepočítej novým algoritmem (změní se jen když je nová lepší)
 {
-  for (const a of q.all('SELECT id, province_id, path FROM armies WHERE path IS NOT NULL')) {
+  for (const a of q.all('SELECT id, owner_id, province_id, path FROM armies WHERE path IS NOT NULL')) {
     try {
       const path = JSON.parse(a.path);
       if (!path.length) continue;
-      const fresh = findPath(a.province_id, path[path.length - 1]);
+      const fresh = findPath(a.province_id, path[path.length - 1], a.owner_id);
       if (fresh && fresh.length && JSON.stringify(fresh) !== JSON.stringify(path)) {
         const firstChanged = fresh[0] !== path[0];
         q.run(`UPDATE armies SET path = ?${firstChanged ? ', next_arrive = NULL' : ''} WHERE id = ?`, JSON.stringify(fresh), a.id);
