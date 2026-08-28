@@ -388,8 +388,8 @@ function snapshot(player) {
         return { ...b, sides: { defenders: sum(s.defenders), attackers: sum(s.attackers) } };
       }),
     events: q.all('SELECT ts, type, text FROM events WHERE player_id IS NULL OR player_id = ? ORDER BY id DESC LIMIT 60', pid),
-    trades: q.all("SELECT * FROM trades WHERE status = 'open' AND (to_id IS NULL OR to_id = ? OR from_id = ?)", pid, pid)
-      .map((t) => ({ id: t.id, fromId: t.from_id, toId: t.to_id, give: JSON.parse(t.give), want: JSON.parse(t.want) })),
+    trades: q.all("SELECT * FROM trades WHERE (to_id IS NULL OR to_id = ? OR from_id = ?) AND (status = 'open' OR created > ?)", pid, pid, now - 7 * 86_400_000)
+      .map((t) => ({ id: t.id, fromId: t.from_id, toId: t.to_id, status: t.status, give: JSON.parse(t.give), want: JSON.parse(t.want) })),
     shops: q.all('SELECT * FROM shops').map((s) => ({ id: s.id, playerId: s.player_id, town: s.town, res: s.res, stock: Math.floor(s.stock), earned: Math.floor(s.earned) })),
     alliance: myAlliance ? { ...myAlliance, members: q.all('SELECT player_id FROM alliance_members WHERE alliance_id = ?', myAlliance.id).map((r) => r.player_id) } : null,
     allianceInvites: q.all('SELECT i.alliance_id AS id, a.name FROM alliance_invites i JOIN alliances a ON a.id = i.alliance_id WHERE i.player_id = ?', pid),
@@ -786,8 +786,12 @@ const routes = {
     if (!G.canAfford(pid, g)) return send(res, 400, { error: 'Nabízíš víc, než máš.' });
     q.run('INSERT INTO trades (from_id, to_id, give, want, status, created) VALUES (?, ?, ?, ?, ?, ?)',
       pid, toId ? +toId : null, JSON.stringify(g), JSON.stringify(w), 'open', Date.now());
+    const tradeId = q.get('SELECT last_insert_rowid() AS id').id;
+    // nabídka jako karta v chatu (soukromá nabídka = jen mezi oběma)
+    q.run('INSERT INTO chat (player_id, ts, text, to_id) VALUES (?, ?, ?, ?)', pid, Date.now(), `[trade:${tradeId}]`, toId ? +toId : null);
     if (toId) G.notify(+toId, 'trade', `${player.name} ti poslal obchodní nabídku.`);
     else G.notify(null, 'trade', `${player.name} vystavil obchodní nabídku.`);
+    G.pushRefresh();
     send(res, 200, { ok: true });
   },
   'POST /api/trade/accept': async (req, res, player) => {
@@ -807,10 +811,21 @@ const routes = {
     G.pushRefresh();
     send(res, 200, { ok: true });
   },
+  'POST /api/trade/reject': async (req, res, player) => {
+    const { id } = await readBody(req);
+    const pid = G.effId(player);
+    const t = q.get("SELECT * FROM trades WHERE id = ? AND status = 'open' AND to_id = ?", +id, pid);
+    if (!t) return send(res, 400, { error: 'Nabídka už neplatí.' });
+    q.run("UPDATE trades SET status = 'rejected' WHERE id = ?", t.id);
+    G.notify(t.from_id, 'trade', `${player.name} odmítl tvou obchodní nabídku.`);
+    G.pushRefresh();
+    send(res, 200, { ok: true });
+  },
   'POST /api/trade/cancel': async (req, res, player) => {
     const { id } = await readBody(req);
     const pid = G.effId(player);
     q.run("UPDATE trades SET status = 'cancelled' WHERE id = ? AND from_id = ?", +id, pid);
+    G.pushRefresh();
     send(res, 200, { ok: true });
   },
   // zpětná vazba hráčů -> Discord (bot token se bere z BACKUP_BOT_TOKEN)
@@ -853,12 +868,14 @@ const routes = {
     send(res, 200, { ok: true });
   },
   'POST /api/pact/offer': async (req, res, player) => {
+    // (karta míru se vkládá níže po vytvoření nabídky)
     const { playerId } = await readBody(req);
     const pid = G.effId(player), other = +playerId;
     if (other === pid || !G.playerById(other)) return send(res, 400, { error: 'Neplatný hráč.' });
     if (G.pactActive(pid, other)) return send(res, 400, { error: 'Mír už platí.' });
     q.run("INSERT OR REPLACE INTO pacts (a, b, status, since) VALUES (?, ?, 'offered', ?)", pid, other, Date.now());
     G.notify(other, 'pact', `${player.name} ti nabízí mír (pakt o neútočení).`);
+    q.run('INSERT INTO chat (player_id, ts, text, to_id) VALUES (?, ?, ?, ?)', pid, Date.now(), `[pact:${pid}]`, other);
     send(res, 200, { ok: true });
   },
   'POST /api/pact/accept': async (req, res, player) => {
@@ -885,6 +902,7 @@ const routes = {
     const sym = ['swords', 'shield', 'crown', 'tower', 'star', 'tree'].includes(symbol) ? symbol : 'swords';
     const color = /^#[0-9A-Fa-f]{6}$/.test(String(bg || '')) ? bg : '#1565C0';
     q.run('INSERT INTO alliances (name, symbol, bg) VALUES (?, ?, ?)', String(name || 'Aliance').slice(0, 30), sym, color);
+    q.run('INSERT INTO chat (player_id, ts, text, to_id) VALUES (?, ?, ?, NULL)', pid, Date.now(), `[ally:${String(name || 'Aliance').slice(0, 30)}]`);
     const a = q.get('SELECT id FROM alliances ORDER BY id DESC LIMIT 1');
     q.run('INSERT INTO alliance_members (alliance_id, player_id) VALUES (?, ?)', a.id, pid);
     send(res, 200, { ok: true });

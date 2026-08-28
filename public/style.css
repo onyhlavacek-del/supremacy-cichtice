@@ -117,6 +117,14 @@ body {
 #sheet h3 { font-size: 13px; margin: 12px 0 6px; color: #6B675F; text-transform: uppercase; letter-spacing: .4px; }
 .sub { color: #8B877F; font-size: 12.5px; margin-bottom: 8px; }
 .owner-dot { width: 10px; height: 10px; border-radius: 5px; display: inline-block; flex: none; }
+/* karty nabidek v chatu + obalky soukromych zprav */
+.offer-card { background: #F4F2ED; border: 1px solid #E0DCD3; border-radius: 10px; padding: 8px 10px; margin-top: 4px; }
+.offer-line { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.offer-arrow { font-size: 17px; color: #8B877F; }
+.pm-btn { position: relative; background: none; border: none; color: #8B877F; padding: 2px 4px; cursor: pointer; display: inline-flex; }
+.pm-dot { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 4px; background: #D93025; }
+@media (prefers-color-scheme: dark) { .offer-card { background: #24262B; border-color: #33363B; } }
+
 /* changelog */
 #chlog-list ul { margin: 6px 0 12px 18px; }
 #chlog-list li { font-size: 13px; color: #4B4843; margin: 5px 0; line-height: 1.4; }

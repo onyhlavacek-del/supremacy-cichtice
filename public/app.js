@@ -402,6 +402,11 @@ function updateTabs() {
 
 // ---------- menu (tři čárky): žebříček / chat / diplomacie ----------
 let drawerTab = 'board';
+let pmWith = null; // soukromá konverzace s hráčem (přes obálku v žebříčku)
+const pmSeen = JSON.parse(localStorage.getItem('supPmSeen') || '{}');
+function pmUnread(otherId) {
+  return (STATE.chat || []).some((m) => m.toId === ME.effId && m.playerId === otherId && m.id > (pmSeen[otherId] || 0));
+}
 const allyPick = { symbol: 'swords', bg: '#1565C0' };
 let lastChatSeen = 0;
 let knownBoot = null;
@@ -438,8 +443,41 @@ async function sendChat() {
   const t = $('#chat-text').value.trim();
   if (!t) return;
   $('#chat-text').value = '';
-  await api('/api/chat/send', { text: t, toId: $('#chat-to').value || null });
+  await api('/api/chat/send', { text: t, toId: pmWith || null });
   refreshState();
+}
+
+// zprava v chatu: bezny text, nebo karta [trade:ID] / [pact:PID] / [ally:NAZEV]
+const DOVE_SVG = '<svg viewBox="0 0 16 16" width="15" height="15"><path d="M13.5 3.5c-2 .2-3.4 1-4.3 2.2C8.6 4.3 7.3 3 5 3c1 .8 1.6 1.7 1.8 2.8L2 8.5l2.5.4L3 11l3.7-1.6c.4 1.6 1.6 2.8 3.5 3.3-.6-1-.8-2-.6-3.1 2.6-.5 4-2.5 3.9-6.1z" fill="#7BA7CC"/></svg>';
+function chatMsgHtml(m) {
+  const when = `<span class="when">${new Date(m.ts).toLocaleTimeString('cs', { hour: '2-digit', minute: '2-digit' })}</span>`;
+  const who = `<span class="who" style="color:${STATE.players.find((p) => p.id === m.playerId)?.color || '#888'}">${ownerName(m.playerId)}</span>`;
+  let card = null;
+  if (m.text.startsWith('[trade:')) {
+    const t = STATE.trades.find((x) => x.id === +m.text.slice(7, -1));
+    if (!t) return '';
+    const chips = (o) => Object.entries(o).map(([r, v]) => `<span class="chip" data-rlabel="${RES_LABEL[r]}">${RES_ICON[r]}${v}</span>`).join('');
+    let act = '';
+    if (t.status === 'open') {
+      if (t.fromId === ME.effId) act = `<button class="btn small ghost" data-act="tradecancel" data-id="${t.id}">Zrušit</button>`;
+      else act = `<button class="btn small" data-act="tradeaccept" data-id="${t.id}">Přijmout</button>${t.toId === ME.effId ? `<button class="btn small ghost" data-act="tradereject" data-id="${t.id}">Odmítnout</button>` : ''}`;
+    } else act = `<span class="meta">${{ accepted: 'přijato', rejected: 'odmítnuto', cancelled: 'zrušeno' }[t.status] || t.status}</span>`;
+    card = `<div class="offer-card"><span class="meta">obchodní nabídka${t.toId ? ` pro ${ownerName(t.toId)}` : ''}</span>
+      <div class="offer-line"><span class="chips">${chips(t.give)}</span><span class="offer-arrow">&#8646;</span><span class="chips">${chips(t.want)}</span></div>
+      <div class="btn-row">${act}</div></div>`;
+  } else if (m.text.startsWith('[pact:')) {
+    const from = +m.text.slice(6, -1);
+    const active = STATE.pacts.some((x) => x.status === 'active' && (x.a === from || x.b === from));
+    const offered = STATE.pacts.some((x) => x.status === 'offered' && x.a === from);
+    let act = active ? '<span class="meta">mír uzavřen</span>' : offered && m.toId === ME.effId ? `<button class="btn small" data-act="pactaccept" data-id="${from}">Přijmout mír</button>` : '<span class="meta">nabídka míru</span>';
+    card = `<div class="offer-card"><span class="meta" style="display:flex;align-items:center;gap:6px">${DOVE_SVG} nabídka míru</span><div class="btn-row">${act}</div></div>`;
+  } else if (m.text.startsWith('[ally:')) {
+    const nm = m.text.slice(6, -1).replace(/</g, '&lt;');
+    const pl = STATE.players.find((p) => p.id === m.playerId);
+    card = `<div class="offer-card"><span class="meta" style="display:flex;align-items:center;gap:6px">${pl?.ally ? allyBanner(pl.ally, 15) : ''} založena aliance <b>${nm}</b></span></div>`;
+  }
+  const body = card || m.text.replace(/</g, '&lt;');
+  return `<div class="chatmsg">${who}${when}<br>${body}</div>`;
 }
 
 function renderDrawer() {
@@ -455,8 +493,11 @@ function renderDrawer() {
     board.forEach((p, i) => {
       const sc = p.score || { total: 0, counts: {} };
       const c = sc.counts || {};
+      const env = p.id !== ME.effId
+        ? `<button class="pm-btn" data-act="pm" data-id="${p.id}" title="Napsat soukromě"><svg viewBox="0 0 16 16" width="14" height="14"><rect x="1" y="3" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 4.5 8 9l6-4.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>${pmUnread(p.id) ? '<i class="pm-dot"></i>' : ''}</button>`
+        : '';
       html += `<tr><td class="meta">${i + 1}.</td>
-        <td style="text-align:left"><span style="display:flex;align-items:center;gap:5px">${ownerDot(p.id)} ${p.display || p.name}${p.ally ? allyBanner(p.ally, 12) : ''}</span></td>
+        <td style="text-align:left"><span style="display:flex;align-items:center;gap:5px">${ownerDot(p.id)} ${p.display || p.name}${p.ally ? allyBanner(p.ally, 12) : ''}${env}</span></td>
         <td>${c.provinces || 0}<i>${sc.territory || 0} b</i></td>
         <td>${c.units || 0}<i>${sc.army || 0} b</i></td>
         <td>${c.ha || 0} ha<i>${sc.map || 0} b</i></td>
@@ -467,20 +508,23 @@ function renderDrawer() {
     html += `</table>`;
     html += `<p class="sub" style="margin-top:8px">Body: dům 10 (dvojité ložisko +2), příroda 5, voják dle síly (2 pěšáci = 1 b), objevená mapa 1 b / 3 ha, kopec 5, město 8, vzdělání 10 / úroveň.</p>`;
   } else if (drawerTab === 'chat') {
-    // výběr příjemce (Všichni / soukromě)
-    const sel = $('#chat-to');
-    const prevVal = sel.value;
-    sel.innerHTML = `<option value="">Všem</option>` + STATE.players
-      .filter((p) => p.id !== ME.effId && !p.teamWith)
-      .map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
-    sel.value = prevVal || '';
-    if (!STATE.chat?.length) html = '<p class="sub" style="margin-top:10px">Zatím žádné zprávy. Napiš první!</p>';
-    for (const m of STATE.chat || []) {
-      const priv = m.toId ? ` <span class="priv">soukromě → ${ownerName(m.toId)}</span>` : '';
-      html += `<div class="chatmsg ${m.toId ? 'private' : ''}"><span class="who" style="color:${STATE.players.find((p) => p.id === m.playerId)?.color || '#888'}">${ownerName(m.playerId)}</span>${priv}<span class="when">${new Date(m.ts).toLocaleTimeString('cs', { hour: '2-digit', minute: '2-digit' })}</span><br>${m.text.replace(/</g, '&lt;')}</div>`;
+    $('#chat-to').classList.add('hidden');
+    if (pmWith) {
+      // soukromá konverzace
+      html += `<div class="row" style="margin-bottom:4px"><span style="display:flex;align-items:center;gap:6px"><button class="btn small ghost" data-act="pmback">&#8249; Zpět</button> ${ownerDot(pmWith)} <b>${ownerName(pmWith)}</b></span><span class="meta">soukromě</span></div>`;
+      const msgs = (STATE.chat || []).filter((m) => m.toId && ((m.playerId === pmWith && m.toId === ME.effId) || (m.playerId === ME.effId && m.toId === pmWith)));
+      if (!msgs.length) html += '<p class="sub" style="margin-top:10px">Zatím žádné zprávy — napiš první!</p>';
+      for (const m of msgs) html += chatMsgHtml(m);
+      const last = msgs[msgs.length - 1];
+      if (last) { pmSeen[pmWith] = Math.max(pmSeen[pmWith] || 0, last.id); localStorage.setItem('supPmSeen', JSON.stringify(pmSeen)); }
+    } else {
+      // společný chat (karty nabídek, míru a aliancí uprostřed proudu)
+      const msgs = (STATE.chat || []).filter((m) => !m.toId || m.text.startsWith('[trade:') || m.text.startsWith('[pact:'));
+      if (!msgs.length) html = '<p class="sub" style="margin-top:10px">Zatím žádné zprávy. Napiš první!</p>';
+      for (const m of msgs) html += chatMsgHtml(m);
+      html += `<button class="btn ghost small" data-act="gototrade" style="margin-top:8px">Vytvořit obchodní nabídku</button>`;
+      if (STATE.chat?.length) lastChatSeen = STATE.chat[STATE.chat.length - 1].id;
     }
-    html += `<button class="btn ghost small" data-act="gototrade" style="margin-top:8px">Vytvořit obchodní nabídku</button>`;
-    if (STATE.chat?.length) lastChatSeen = STATE.chat[STATE.chat.length - 1].id;
   } else if (drawerTab === 'diplo') {
     html += '<h3>Vztahy</h3>';
     for (const p of STATE.players.filter((p) => p.id !== ME.effId && !p.teamWith)) {
@@ -952,7 +996,7 @@ function renderTrade() {
   let html = '<h2>Obchod</h2>';
   // nabídky hráčů
   html += '<h3>Nabídky mezi hráči</h3>';
-  const open = STATE.trades;
+  const open = STATE.trades.filter((t) => t.status === 'open');
   if (!open.length) html += '<p class="sub">Žádné otevřené nabídky.</p>';
   for (const t of open) {
     const gv = Object.entries(t.give).map(([k, v]) => `${v} ${RES_LABEL[k]}`).join(' + ');
@@ -1101,6 +1145,11 @@ function bindSheetActions(root) {
       if (act === 'pactoffer') { const r = await api('/api/pact/offer', { playerId: +el.dataset.id }); if (r.ok) { toast('Nabídka míru odeslána.'); refreshState(); } }
       if (act === 'pactaccept') { const r = await api('/api/pact/accept', { playerId: +el.dataset.id }); if (r.ok) refreshState(); }
       if (act === 'pactcancel') { if (confirm('Opravdu vypovědět mír?')) { const r = await api('/api/pact/cancel', { playerId: +el.dataset.id }); if (r.ok) refreshState(); } }
+      if (act === 'pm') { pmWith = +el.dataset.id; drawerTab = 'chat'; renderDrawer(); }
+      if (act === 'pmback') { pmWith = null; renderDrawer(); }
+      if (act === 'tradeaccept') { const r = await api('/api/trade/accept', { id: +el.dataset.id }); if (r.ok) { toast('Obchod proběhl.'); refreshState(); } }
+      if (act === 'tradereject') { const r = await api('/api/trade/reject', { id: +el.dataset.id }); if (r.ok) refreshState(); }
+      if (act === 'tradecancel') { await api('/api/trade/cancel', { id: +el.dataset.id }); refreshState(); }
       if (act === 'gototrade') { closeDrawer(); activeTab = 'trade'; updateTabs(); renderSheet(); }
       if (act === 'logout') { await api('/api/logout', {}); location.reload(); }
       if (act === 'tutorial') startTour();
@@ -1269,6 +1318,18 @@ function showInfo(el) {
 // Nový update = přidat záznam NAHORU (vyšší n). Hráčům se ukáže vše, co ještě neviděli.
 const CHANGELOG = [
   {
+    n: 2, when: '28. 8.',
+    title: 'Chat a obchod',
+    items: [
+      'Obchodní nabídky přicházejí jako karty do chatu — s ikonami surovin a tlačítky Přijmout / Odmítnout',
+      'Soukromé zprávy nově přes obálku u jména v žebříčku (červená tečka = nepřečtená zpráva)',
+      'Záložka Chat je jen společná — soukromé konverzace se otevírají z žebříčku',
+      'Nabídka míru se ukáže v chatu s holubicí, založení aliance s jejím praporem',
+      'Válečné úsilí: pohyb během bitvy dává bonusy (km = síla, kopec = pěšák, město = síla)',
+      'U armád na mapě je vidět obrázek jednotky',
+    ],
+  },
+  {
     n: 1, when: '28. 8.',
     title: 'Velký update',
     items: [
@@ -1328,7 +1389,7 @@ function tourSteps() {
     { t: 'Výpravy = mini-Strava', x: 'V záložce Výpravy zapni „Jdu pěšky" nebo „Jedu na kole" a vyraž ven. Odměna je podle SKUTEČNĚ ušlé vzdálenosti. Kopce dávají suroviny a vojáky, města odemykají obchod. Za 3/10/25 zdolaných kopců jsou odznaky s penězi.', prep: () => { sheetArmy = null; map.selectedArmy = null; activeTab = 'trips'; updateTabs(); renderSheet(); }, el: '#sheet' },
     { t: 'Obchod', x: 'Obchoduješ přímo s ostatními („dám X za Y") nebo v objevených městech na NPC trhu — čím dál město, tím lepší kurz. Ve městě, kde fyzicky stojíš, si můžeš založit vlastní obchod, který pak sám vydělává.', prep: () => { activeTab = 'trade'; updateTabs(); renderSheet(); }, el: '#sheet' },
     { t: 'Vzdělání a lepší jednotky', x: 'Silnější jednotky než pěchota odemkneš VZDĚLÁNÍM. Do kurzu se zapisuješ FYZICKY u školy (čp. 91) — dojdi k ní a ťukni na ni. Vyšší vzdělání navíc zvyšuje strop morálky.', prep: () => { activeTab = 'map'; updateTabs(); renderSheet(); } },
-    { t: 'Menu: žebříček a diplomacie', x: 'Pod třemi čárkami je žebříček (vede se na BODY: území, vojsko, objevená mapa, výpravy, vzdělání), společný i soukromý chat a diplomacie: MÍR (pakt o neútočení) a ALIANCE (max 3 hráči — sdílí mapu, nemůžou na sebe útočit a mají štít u jména).', el: '#menu-btn' },
+    { t: 'Menu: žebříček a diplomacie', x: 'Pod třemi čárkami je žebříček (vede se na BODY: území, vojsko, objevená mapa, výpravy, vzdělání) a společný chat — obchodní nabídky a nabídky míru tam chodí jako karty s tlačítky. Soukromě si píšeš přes OBÁLKU u jména v žebříčku (červená tečka = nová zpráva). V Diplomacii je: MÍR (pakt o neútočení) a ALIANCE (max 3 hráči — sdílí mapu, nemůžou na sebe útočit a mají štít u jména).', el: '#menu-btn' },
     { t: 'Obnovení a zpětná vazba', x: 'Šipka obnoví hru a sama pozná, když vyjde nová verze. A když něco nefunguje, máš nápad nebo dotaz — v záložce Říše je tlačítko Zpětná vazba, zpráva přijde rovnou Ondrovi.', el: '#refresh-btn' },
     { t: 'A je to!', x: 'Teď víš všechno podstatné. Průvodce si kdykoli pustíš znovu: Říše → Tutoriál. Hodně štěstí — a hlavně choď ven, hra odměňuje pohyb!', prep: closePanels },
   ];
