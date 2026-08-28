@@ -249,7 +249,35 @@ input, select {
 }
 
 /* ---------- tutoriál ---------- */
-#tutorial { z-index: 55; }
+/* interaktivní průvodce: ztmavení s "dírou" na cílový prvek */
+#tour { position: fixed; inset: 0; z-index: 60; }
+#tour-shade {
+  position: fixed; inset: 0; background: rgba(12, 12, 15, 0.62);
+  pointer-events: none; z-index: 58;
+}
+#tour-hole {
+  position: fixed; border-radius: 14px; pointer-events: none; z-index: 59;
+  border: 2px solid #FFFFFF66;
+  transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease;
+}
+#tour-card {
+  position: fixed; background: #fff; border-radius: 16px; padding: 16px; z-index: 3;
+  max-width: 340px; width: calc(100% - 32px); box-shadow: 0 8px 30px #00000055;
+  transition: top .35s ease;
+}
+#tour-card h2 { font-size: 16px; margin-bottom: 6px; }
+#tour-card p { font-size: 13.5px; color: #4B4843; line-height: 1.45; }
+#tour-dots { display: flex; gap: 4px; margin: 10px 0 4px; flex-wrap: wrap; }
+#tour-dots i { width: 6px; height: 6px; border-radius: 3px; background: #D6D2CA; }
+#tour-dots i.on { background: #2B2A28; width: 15px; }
+/* klikací kolonky s vysvětlivkou */
+.info-u { border-bottom: 1px dashed #B5B1A8; cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  #tour-card { background: #202226F8; }
+  #tour-card p { color: #B9B6AF; }
+  #tour-dots i { background: #3A3D42; }
+  #tour-dots i.on { background: #E8E6E1; }
+}
 #tut-card { max-width: 400px; }
 #tut-text { min-height: 110px; line-height: 1.45; }
 #tut-dots { display: flex; gap: 5px; justify-content: center; margin: 10px 0 2px; }

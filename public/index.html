@@ -109,10 +109,11 @@
 <div id="dlg-feedback" class="dlg hidden">
   <div class="dlg-card">
     <h2>Zpětná vazba</h2>
-    <p>Napiš, co nefunguje nebo co bys přidal — přijde to Matějovi na Discord.</p>
+    <p>Napiš, co nefunguje, co bys přidal, nebo na co se chceš zeptat — přijde to Matějovi na Discord.</p>
     <select id="fb-kind">
       <option value="chyba">Něco nefunguje (chyba)</option>
       <option value="napad">Nápad na vylepšení</option>
+      <option value="dotaz">Dotaz — jak něco funguje?</option>
       <option value="jine">Jiné</option>
     </select>
     <textarea id="fb-text" rows="4" maxlength="900" placeholder="Popiš to vlastními slovy…" style="width:100%;margin-top:8px;border:1px solid #DAD6CE;border-radius:10px;padding:10px;font:inherit;resize:vertical"></textarea>
@@ -123,17 +124,19 @@
   </div>
 </div>
 
-<!-- tutoriál -->
-<div id="tutorial" class="dlg hidden">
-  <div class="dlg-card" id="tut-card">
-    <h2 id="tut-title"></h2>
-    <p id="tut-text"></p>
-    <div id="tut-dots"></div>
+<!-- interaktivní průvodce (spotlight tutoriál) — stmívač mimo #tour (kompozitní bug Edge) -->
+<div id="tour-shade" class="hidden"></div>
+<div id="tour-hole" class="hidden"></div>
+<div id="tour" class="hidden">
+  <div id="tour-card">
+    <h2 id="tour-title"></h2>
+    <p id="tour-text"></p>
+    <div id="tour-dots"></div>
     <div class="btn-row">
-      <button id="tut-prev" class="btn ghost small">Zpět</button>
-      <button id="tut-next" class="btn small">Další</button>
+      <button id="tour-prev" class="btn ghost small">Zpět</button>
+      <button id="tour-next" class="btn small">Dál</button>
     </div>
-    <button id="tut-close" class="btn ghost small" style="margin-top:6px">Zavřít tutoriál</button>
+    <button id="tour-skip" class="btn ghost small" style="margin-top:6px">Ukončit průvodce</button>
   </div>
 </div>
 

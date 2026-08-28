@@ -793,7 +793,7 @@ const routes = {
   'POST /api/feedback': async (req, res, player) => {
     const { kind, text } = await readBody(req);
     const t = String(text || '').trim().slice(0, 900);
-    const k = ['chyba', 'napad', 'jine'].includes(kind) ? kind : 'jine';
+    const k = ['chyba', 'napad', 'dotaz', 'jine'].includes(kind) ? kind : 'jine';
     if (t.length < 3) return send(res, 400, { error: 'Napiš aspoň pár slov.' });
     const last = q.get('SELECT ts FROM feedback WHERE player_id = ? ORDER BY id DESC LIMIT 1', player.id);
     if (last && Date.now() - last.ts < 60_000) return send(res, 400, { error: 'Počkej minutku mezi hlášeními.' });
@@ -804,7 +804,7 @@ const routes = {
     const channel = (process.env.FEEDBACK_CHANNEL_ID || '1533794658789101628').trim();
     if (token) {
       try {
-        const label = { chyba: 'CHYBA', napad: 'NÁPAD', jine: 'POZNÁMKA' }[k];
+        const label = { chyba: 'CHYBA', napad: 'NÁPAD', dotaz: 'DOTAZ', jine: 'POZNÁMKA' }[k];
         const r = await fetch(`https://discord.com/api/v10/channels/${channel}/messages`, {
           method: 'POST',
           headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'SupremacyCichtice/1.0' },

@@ -452,7 +452,7 @@ function renderDrawer() {
     const board = STATE.players.filter((p) => !p.teamWith)
       .sort((a, b) => (b.provinceCount - a.provinceCount) || (b.unitCount - a.unitCount));
     board.forEach((p, i) => {
-      html += `<div class="row"><span><b>${i + 1}.</b> ${ownerDot(p.id)} ${p.display || p.name}</span>
+      html += `<div class="row"><span style="display:flex;align-items:center;gap:6px"><b>${i + 1}.</b> ${ownerDot(p.id)} ${p.display || p.name}${p.ally ? allyBanner(p.ally, 13) : ''}</span>
         <span class="meta">${p.provinceCount} území · ${p.unitCount} vojáků</span></div>`;
     });
   } else if (drawerTab === 'chat') {
@@ -535,9 +535,8 @@ function ownerName(id) {
   return p?.display || p?.name || '?';
 }
 function ownerDot(id) {
-  const p = STATE.players.find((p) => p.id === id);
-  if (p?.ally) return allyBanner(p.ally);
-  return `<span class="owner-dot" style="background:${p?.color || '#8B877F'}"></span>`;
+  const c = STATE.players.find((p) => p.id === id)?.color || '#8B877F';
+  return `<span class="owner-dot" style="background:${c}"></span>`;
 }
 
 // cenovky se surovinami; červeně, co chybí
@@ -642,7 +641,7 @@ function renderProvince(id) {
   if (st.owner) {
     // morálka s barevným pruhem
     const mc = st.morale >= 60 ? '#2E7D32' : st.morale >= 35 ? '#EF6C00' : '#C62828';
-    html += `<div class="row"><span>Morálka</span><b style="color:${mc}">${st.morale} %</b></div>
+    html += `<div class="row" data-info="morale" data-prov="${id}"><span class="info-u">Morálka</span><b style="color:${mc}">${st.morale} %</b></div>
       <div class="bar"><i style="width:${st.morale}%;background:${mc}"></i></div>`;
     // produkce (dům: surovina + daně, jako v Supremacy)
     if (prov.kind === 'house') {
@@ -656,8 +655,8 @@ function renderProvince(id) {
       const perH = Math.round(RULES.prodPerH * (prov.double ? 2 : 1) * (st.morale / 100) * mult);
       html += `<div class="row"><span>Produkce</span><span class="chips"><span class="chip" data-rlabel="${RES_LABEL[prov.resource]}">${RES_ICON[prov.resource]}+${perH}/h${prov.double ? ' (2×)' : ''}${mult > 1 ? ` (vylepšení ×${mult.toFixed(2)})` : ''}</span></span></div>`;
     }
-    if (st.fortress) html += `<div class="row"><span>Pevnost</span><b>lvl ${st.fortress} (−${RULES.fortress[st.fortress].dmgReduction * 100} % poškození)</b></div>`;
-    if (st.barracks) html += `<div class="row"><span>Kasárna</span><b>lvl ${st.barracks} (+${RULES.barracks[st.barracks].recruitBonus * 100} % verbování)</b></div>`;
+    if (st.fortress) html += `<div class="row" data-info="fortress" data-prov="${id}"><span class="info-u">Pevnost</span><b>lvl ${st.fortress} (−${RULES.fortress[st.fortress].dmgReduction * 100} % poškození)</b></div>`;
+    if (st.barracks) html += `<div class="row" data-info="barracks" data-prov="${id}"><span class="info-u">Kasárna</span><b>lvl ${st.barracks} (+${RULES.barracks[st.barracks].recruitBonus * 100} % verbování)</b></div>`;
   } else {
     html += `<div class="row"><span>Produkce po obsazení</span><span class="chips"><span class="chip">${RES_ICON[prov.resource]}${RES_LABEL[prov.resource]}${prov.double ? ' 2×' : ''}</span>${prov.kind === 'house' ? `<span class="chip">${RES_ICON.money}daně</span>` : ''}</span></div>`;
   }
@@ -729,7 +728,7 @@ function renderProvince(id) {
     if (prov.kind === 'house') {
       // automatické verbování pěchoty
       html += `<h3>Verbování</h3>
-        <div class="prod"><div><b>Pěchota</b><br><span class="meta">verbuje se automaticky${st.barracks ? ` (kasárna +${RULES.barracks[st.barracks].recruitBonus * 100} %)` : ''}</span></div>
+        <div class="prod" data-info="recruit" data-prov="${id}"><div><b class="info-u">Pěchota</b><br><span class="meta">verbuje se automaticky${st.barracks ? ` (kasárna +${RULES.barracks[st.barracks].recruitBonus * 100} %)` : ''}</span></div>
         <div style="min-width:90px"><div class="bar"><i style="width:${st.recruitProgress || 0}%"></i></div><span class="meta">${st.recruitProgress || 0} %</span></div></div>`;
       // výroba jednotek
       html += `<h3>Výroba jednotek</h3>`;
@@ -1030,6 +1029,9 @@ function renderEmpire() {
 
 // ---------- akce v panelu ----------
 function bindSheetActions(root) {
+  root.querySelectorAll('[data-info]').forEach((el) => {
+    el.onclick = (e) => { e.stopPropagation(); showInfo(el); };
+  });
   root.querySelectorAll('[data-act]').forEach((el) => {
     el.onclick = async () => {
       const act = el.dataset.act;
@@ -1081,7 +1083,7 @@ function bindSheetActions(root) {
       if (act === 'pactcancel') { if (confirm('Opravdu vypovědět mír?')) { const r = await api('/api/pact/cancel', { playerId: +el.dataset.id }); if (r.ok) refreshState(); } }
       if (act === 'gototrade') { closeDrawer(); activeTab = 'trade'; updateTabs(); renderSheet(); }
       if (act === 'logout') { await api('/api/logout', {}); location.reload(); }
-      if (act === 'tutorial') showTutorial(0);
+      if (act === 'tutorial') startTour();
       if (act === 'admin') renderAdmin();
       if (act === 'feedback') $('#dlg-feedback').classList.remove('hidden');
       if (act === 'admin-refresh') renderAdmin();
@@ -1199,36 +1201,140 @@ async function renderAdmin() {
   bindSheetActions($('#sheet-content'));
 }
 
-// ---------- tutoriál ----------
-const TUTORIAL = [
-  { t: 'Vítej v Supremacy Čichtice', x: 'Hraje se na skutečné mapě vesnice. Tvůj dům je tvoje hlavní město — produkuje surovinu a daně. Cíl: ovládnout co největší část Čichtic. Vše ostatní ti vysvětlí následující karty.' },
-  { t: 'Mapa a území', x: 'Každý dům produkuje jednu ze 7 surovin + peníze z daní. Pole, louky, lesy a rybníky jsou bonusová území — na startu nikomu nepatří a kdo je obsadí první (dojde tam jeho armáda), ten je má. Ťukni na území a uvidíš, co vyrábí.' },
-  { t: 'Mlha a objevování', x: 'Mapa je zpočátku zahalená — vidíš jen okolí svého domu. Odkrýváš ji CHŮZÍ s otevřenou aplikací (poloha musí být povolená). Zdolaný kopec odkryje velký kruh okolí. Z auta se mapa neodkrývá — hlídá se tempo. BEZ DAT to jde taky: appka trasu uloží do telefonu a až budeš na Wi-Fi, sama ji nahraje — mlha, kopce i města se započítají zpětně. Výpravu jen zapni ještě doma, dokud máš internet.' },
-  { t: 'Vojsko', x: 'Pěchota se u tvých domů verbuje sama (rychleji s kasárnami). Lepší jednotky odemkneš vzděláním — kurzy se zapisují FYZICKY u školy (čp. 91). Armádu pošleš ťuknutím na ni → Přesun/Útok → cíl. Pochody jsou pomalé — když jdeš fyzicky s vojáky nebo dojdeš do cíle, jdou 4× rychleji!' },
-  { t: 'Boj', x: 'Bitva probíhá v kolech po 20 minutách. Sílu ovlivňuje morálka, počet a typ jednotek; obráncům pomáhá pevnost (−poškození). Když na tebe někdo útočí, přijde ti oznámení — pošli posily, dokud bitva běží. Rozkaz jde zrušit, armáda se vrátí do posledního uzlu.' },
-  { t: 'Výpravy (mini-Strava)', x: 'V záložce Výpravy zapni „Jdu pěšky" nebo „Jedu na kole" a vyraž na kopec či do města. Na místě dostaneš odměnu podle REÁLNĚ ušlé vzdálenosti — autem to nejde ošidit. Kopce dávají suroviny a vojáky, města odemykají obchod. Za 3/10/25 kopců jsou odznaky s penězi.' },
-  { t: 'Obchod', x: 'S kamarády obchoduješ napřímo (záložka Obchod → nabídka „dám X za Y"). V objevených městech je NPC trh — čím dál město, tím lepší kurz. A když ve městě fyzicky stojíš, můžeš si tam založit obchod, který pak sám vydělává.' },
-  { t: 'Diplomacie a chat', x: 'V menu (tři čárky vpravo nahoře) najdeš žebříček, společný i soukromý chat a diplomacii — nabídky míru (pakt o neútočení) a aliance (max 2 hráči, sdílí mapu). Sourozenci v rozděleném domě na sebe 3 dny nemůžou útočit.' },
-  { t: 'Suroviny a morálka', x: 'Ťukni na surovinu v horní liště — uvidíš, co ji vyrábí a co spotřebovává. Hlídej, ať nic nepadne do minusu: nedostatek sráží morálku, a morálka řídí produkci, verbování i sílu v boji. Morálku zvedá pevnost a plné zásoby. Hodně štěstí!' },
-];
-let tutStep = 0;
-function showTutorial(step = 0) {
-  tutStep = step;
-  const s = TUTORIAL[tutStep];
-  $('#tut-title').textContent = s.t;
-  $('#tut-text').textContent = s.x;
-  $('#tut-dots').innerHTML = TUTORIAL.map((_, i) => `<i class="${i === tutStep ? 'on' : ''}"></i>`).join('');
-  $('#tut-prev').style.visibility = tutStep === 0 ? 'hidden' : 'visible';
-  $('#tut-next').textContent = tutStep === TUTORIAL.length - 1 ? 'Hotovo' : 'Další';
-  $('#tutorial').classList.remove('hidden');
+// ---------- info bubliny u kolonek (morálka, verbování…) ----------
+const fmtH = (h) => !isFinite(h) ? '∞' : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${+h.toFixed(1)} h` : `${Math.round(h / 24)} dní`;
+function showInfo(el) {
+  hideBubble();
+  const provId = +el.dataset.prov;
+  const prov = MAPDATA.provinces.find((p) => p.id === provId);
+  const st = STATE.provinces.find((p) => p.id === provId);
+  if (!st) return;
+  const bonus = st.barracks ? RULES.barracks[st.barracks].recruitBonus : 0;
+  const rate = (1 / RULES.recruitHoursPerInf) * (st.morale / 100) * (1 + bonus);
+  let html = '';
+  if (el.dataset.info === 'morale') {
+    html = `<b>Morálka ${st.morale} %</b>
+      <p class="sub">Řídí všechno: produkce i verbování tu teď jedou na ${st.morale} % výkonu.${prov?.kind === 'house' && st.owner === ME.effId ? ` Další pěšák za ~${fmtH(1 / rate)}.` : ''}</p>
+      <p class="sub"><b>Jak ji zvednout:</b> postav pevnost, drž všechny zásoby v plusu (každá chybějící surovina −25) a vylepšuj přírodu. Vzdělání zvyšuje strop. Dobyté území začíná na 30 %.</p>`;
+  } else if (el.dataset.info === 'recruit') {
+    html = `<b>Verbování pěchoty</b>
+      <p class="sub">Každý tvůj dům verbuje sám: 1 pěšák za ~${RULES.recruitHoursPerInf} h při 100 % morálce. Tady při ${st.morale} %${bonus ? ` a s kasárnami (+${bonus * 100} %)` : ''} to je další za ~${fmtH(1 / rate)}.</p>
+      <p class="sub">Zrychlíš to kasárnami a vyšší morálkou. Louky a pole neverbují — ale za dobytí cizí přírody dostaneš 1 pěšáka.</p>`;
+  } else if (el.dataset.info === 'fortress') {
+    const f = RULES.fortress[st.fortress];
+    html = `<b>Pevnost lvl ${st.fortress}</b>
+      <p class="sub">Obránci tu dostávají o ${f.dmgReduction * 100} % menší poškození a morálka je vyšší (+${f.moraleBonus}). Posádku navíc cizí hráči nevidí. Další level postavíš v sekci Stavba.</p>`;
+  } else if (el.dataset.info === 'barracks') {
+    html = `<b>Kasárna lvl ${st.barracks}</b>
+      <p class="sub">Verbování pěchoty tu jede o ${RULES.barracks[st.barracks].recruitBonus * 100} % rychleji (další pěšák za ~${fmtH(1 / rate)}). Kasárna jdou stavět jen u domů.</p>`;
+  }
+  if (!html) return;
+  const b = document.createElement('div');
+  b.id = 'pbubble';
+  b.innerHTML = html;
+  document.body.appendChild(b);
+  const r = el.getBoundingClientRect();
+  const w = b.offsetWidth, h = b.offsetHeight;
+  b.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+  b.style.top = `${Math.max(8, r.top - h - 10 < 8 ? r.bottom + 8 : r.top - h - 10)}px`;
+  setTimeout(() => document.addEventListener('click', hideBubble, { once: true }), 0);
 }
-function closeTutorial() {
-  $('#tutorial').classList.add('hidden');
-  localStorage.setItem('supTutorialSeen', '1');
+
+// ---------- interaktivní průvodce (spotlight tutoriál) ----------
+function tourSteps() {
+  const home = MAPDATA.provinces.find((p) => p.id === ME.homeId);
+  const closePanels = () => {
+    sheetArmy = null; sheetPoi = null; sheetProvince = null; map.selectedArmy = null;
+    map.select(null, null); activeTab = 'map'; updateTabs(); renderSheet(); hideBubble();
+  };
+  const openHome = () => {
+    sheetArmy = null; sheetPoi = null; map.selectedArmy = null;
+    sheetProvince = ME.homeId; activeTab = 'map'; updateTabs(); renderSheet();
+    if (home) { map.select(ME.homeId); map.animateTo(home.c[0], home.c[1], Math.max(map.scale, 2), 500); }
+    $('#sheet-content').scrollTop = 0;
+  };
+  return [
+    { t: 'Vítej v Supremacy Čichtice', x: 'Hraje se na skutečné mapě vesnice — každý dům, pole i rybník existuje doopravdy. Cílem je rozšířit svou říši a ovládnout Čichtice. Pojď, všechno ti UKÁŽU přímo ve hře. Ťukej na Dál.', prep: closePanels },
+    { t: 'Zásoby surovin', x: 'Nahoře jsou tvoje zásoby: peníze a suroviny. Zelené číslo = kolik za hodinu přibývá, červené = ubývá. Ťuknutím na surovinu uvidíš rozpis, co ji vyrábí a co spotřebovává. Nenech nic spadnout do minusu — nedostatek sráží morálku!', el: '#topbar' },
+    { t: 'Tvůj dům = hlavní město', x: `${home ? home.name : 'Tvůj dům'} je tvoje hlavní město: produkuje surovinu, vybírá daně a hlavně VERBUJE VOJÁKY. Když ti ho někdo dobude, přijdeš o část peněz a klesne ti morálka — braň ho. Otevřel jsem ti jeho panel.`, prep: openHome, el: '#sheet' },
+    { t: 'Morálka — nejdůležitější číslo', x: 'Morálka řídí všechno: produkci, rychlost verbování i sílu v boji. Zvedá ji pevnost a plné zásoby, sráží nedostatek surovin a čerstvé dobytí. TIP: kolonky s tečkovaným podtržením (Morálka, Pěchota…) jsou klikací — vyskočí bublina s čísly pro to konkrétní území.', el: '#sheet-content [data-info="morale"]' },
+    { t: 'Jak vznikají vojáci', x: 'Pěchota se verbuje SAMA v každém tvém domě — nemusíš nic mačkat. Při 100 % morálce je nový pěšák za ~3 hodiny; pruh ukazuje, kolik aktuálnímu chybí. Kasárna verbování zrychlí. Louky a pole vojáky nedělají — ale když dobudeš cizí přírodní území, dostaneš na místě 1 pěšáka navíc.', el: '#sheet-content [data-info="recruit"]' },
+    { t: 'Stavby', x: 'V sekci Stavba stavíš: PEVNOST chrání obránce (menší poškození), zvedá morálku a skryje posádku před cizími — hodí se všude. KASÁRNA zrychlují verbování (jen u domů). Staví se jedna věc naráz a stojí suroviny.', el: '#sheet' },
+    { t: 'Armáda a rozkazy', x: 'Ťukni na vojáčka na mapě a otevře se panel armády: PŘESUN (na vlastní/volné území), ÚTOK (na cizí), ROZDĚLIT a SLOUČIT. Když na jednom místě stojí víc armád, přepínáš mezi nimi šipkami ‹ ›. Volné území obsadíš tím, že tam armáda prostě dojde.', prep: () => { const a = (STATE.armies || []).find((x) => Object.values(x.units).reduce((s, v) => s + v, 0) > 0); if (a) { sheetPoi = null; sheetProvince = null; sheetArmy = a.id; map.selectedArmy = a.id; activeTab = 'map'; updateTabs(); renderSheet(); } }, el: '#sheet' },
+    { t: 'Pochody a GPS trik', x: 'Pochody jsou schválně pomalé (pěchota 110 m/h). ALE: když jsi FYZICKY u armády, pochoduje 4× rychleji a rozkaz platí okamžitě — na dálku má přípravu podle vzdálenosti. Nejlepší postup: dojdi k vojákům, u nich zadej rozkaz a kus cesty jdi s nimi. Funguje to i obráceně: dojdi do cíle a počkej tam na ně.' },
+    { t: 'Mlha a objevování', x: 'Mapa je zahalená mlhou — odkrýváš ji CHŮZÍ s otevřenou aplikací (povol polohu). Z auta to nejde, hlídá se tempo. Zdolaný kopec odkryje velký kruh okolí. Bez dat to funguje taky: trasa se uloží do telefonu a nahraje se sama, až chytíš Wi-Fi.' },
+    { t: 'Výpravy = mini-Strava', x: 'V záložce Výpravy zapni „Jdu pěšky" nebo „Jedu na kole" a vyraž ven. Odměna je podle SKUTEČNĚ ušlé vzdálenosti. Kopce dávají suroviny a vojáky, města odemykají obchod. Za 3/10/25 zdolaných kopců jsou odznaky s penězi.', prep: () => { sheetArmy = null; map.selectedArmy = null; activeTab = 'trips'; updateTabs(); renderSheet(); }, el: '#sheet' },
+    { t: 'Obchod', x: 'Obchoduješ přímo s ostatními („dám X za Y") nebo v objevených městech na NPC trhu — čím dál město, tím lepší kurz. Ve městě, kde fyzicky stojíš, si můžeš založit vlastní obchod, který pak sám vydělává.', prep: () => { activeTab = 'trade'; updateTabs(); renderSheet(); }, el: '#sheet' },
+    { t: 'Vzdělání a lepší jednotky', x: 'Silnější jednotky než pěchota odemkneš VZDĚLÁNÍM. Do kurzu se zapisuješ FYZICKY u školy (čp. 91) — dojdi k ní a ťukni na ni. Vyšší vzdělání navíc zvyšuje strop morálky.', prep: () => { activeTab = 'map'; updateTabs(); renderSheet(); } },
+    { t: 'Menu: žebříček a diplomacie', x: 'Pod třemi čárkami je žebříček, společný i soukromý chat a diplomacie: MÍR (pakt o neútočení) a ALIANCE (max 3 hráči — sdílí mapu, nemůžou na sebe útočit a mají štít u jména).', el: '#menu-btn' },
+    { t: 'Obnovení a zpětná vazba', x: 'Šipka obnoví hru a sama pozná, když vyjde nová verze. A když něco nefunguje, máš nápad nebo dotaz — v záložce Říše je tlačítko Zpětná vazba, zpráva přijde rovnou Matějovi.', el: '#refresh-btn' },
+    { t: 'A je to!', x: 'Teď víš všechno podstatné. Průvodce si kdykoli pustíš znovu: Říše → Tutoriál. Hodně štěstí — a hlavně choď ven, hra odměňuje pohyb!', prep: closePanels },
+  ];
 }
-$('#tut-next').onclick = () => { if (tutStep >= TUTORIAL.length - 1) closeTutorial(); else showTutorial(tutStep + 1); };
-$('#tut-prev').onclick = () => showTutorial(Math.max(0, tutStep - 1));
-$('#tut-close').onclick = closeTutorial;
+let tourList = null, tourI = -1;
+function startTour() {
+  tourList = tourSteps();
+  tourI = -1;
+  $('#tour').classList.remove('hidden');
+  $('#tour-shade').classList.remove('hidden');
+  $('#tour-hole').classList.remove('hidden');
+  tourNext();
+}
+function tourGo(i) {
+  tourI = i;
+  const s = tourList[i];
+  try { s.prep?.(); } catch { /* nevadí */ }
+  $('#tour-title').textContent = s.t;
+  $('#tour-text').textContent = s.x;
+  $('#tour-dots').innerHTML = tourList.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('');
+  $('#tour-prev').style.visibility = i === 0 ? 'hidden' : 'visible';
+  $('#tour-next').textContent = i === tourList.length - 1 ? 'Hotovo' : 'Dál';
+  setTimeout(() => tourPlace(s), 140); // nech UI po prep vykreslit
+}
+function tourNext() { if (tourI >= tourList.length - 1) endTour(); else tourGo(tourI + 1); }
+function tourPlace(s) {
+  const hole = $('#tour-hole'), card = $('#tour-card');
+  let r = null;
+  if (s.el) {
+    const el = document.querySelector(s.el);
+    if (el && !el.classList.contains('hidden')) {
+      const rr = el.getBoundingClientRect();
+      if (rr.width > 0 && rr.height > 0) r = rr;
+    }
+  }
+  const pad = 6;
+  const ch = card.offsetHeight, cw = Math.min(340, innerWidth - 32);
+  let top;
+  if (!r) top = Math.max(20, (innerHeight - ch) / 2);
+  else if (r.bottom + ch + 24 < innerHeight) top = r.bottom + 14;
+  else if (r.top - ch - 14 > 8) top = r.top - ch - 14;
+  else top = Math.max(8, (innerHeight - ch) / 2);
+  const left = Math.max(16, (innerWidth - cw) / 2);
+  card.style.top = `${top}px`;
+  card.style.left = `${left}px`;
+  // díra = zvýrazněný prvek; bez cíle rámeček splyne s kartou
+  const hx = r ? r.left - pad : left, hy = r ? r.top - pad : top;
+  const hw = r ? r.width + 2 * pad : cw, hh = r ? r.height + 2 * pad : ch;
+  hole.style.display = r ? 'block' : 'none';
+  hole.style.left = `${hx}px`; hole.style.top = `${hy}px`;
+  hole.style.width = `${hw}px`; hole.style.height = `${hh}px`;
+  // ztmavení: celoplošný backdrop, díra vystřižená přes clip-path (evenodd)
+  const x2 = hx + hw, y2 = hy + hh;
+  $('#tour-shade').style.clipPath = r
+    ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${hx}px ${hy}px, ${hx}px ${y2}px, ${x2}px ${y2}px, ${x2}px ${hy}px, ${hx}px ${hy}px)`
+    : 'none';
+}
+function endTour() {
+  $('#tour').classList.add('hidden');
+  $('#tour-shade').classList.add('hidden');
+  $('#tour-hole').classList.add('hidden');
+  localStorage.setItem('supTourSeen', '1');
+  sheetArmy = null; sheetProvince = null; map.selectedArmy = null;
+  map.select(null, null); activeTab = 'map'; updateTabs(); renderSheet();
+}
+$('#tour-next').onclick = tourNext;
+$('#tour-prev').onclick = () => tourGo(Math.max(0, tourI - 1));
+$('#tour-skip').onclick = endTour;
 
 // ---------- přihlašovací brána ----------
 const gate = { pickedHouse: null, name: '', pass: '' };
@@ -1291,7 +1397,7 @@ async function enterGame() {
   if (home) { map.centerOn(0, 0, 0.35); map.animateTo(home.c[0], home.c[1], 1.7, 1000); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   // poprvé na tomhle zařízení: pusť tutoriál
-  if (!localStorage.getItem('supTutorialSeen')) setTimeout(() => showTutorial(0), 1200);
+  if (!localStorage.getItem('supTourSeen')) setTimeout(() => startTour(), 1400);
 }
 
 // ---------- start ----------
