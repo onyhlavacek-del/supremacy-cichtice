@@ -365,6 +365,11 @@ function snapshot(player) {
       capitalId: G.playerById(pid).capital_id, homeId: G.playerById(pid).home_id,
       resources: G.resOf(pid), ...((b) => ({ balances: b.net, resFlow: { prod: b.prod, cons: b.cons, src: b.src } }))(balances(pid)),
       maxMorale: G.playerById(pid).max_morale,
+      empire: (() => {
+        const x = G.playerById(pid).xp || 0;
+        const L = C.levelFor(x);
+        return { level: L.lvl, into: Math.floor(L.into), need: L.need, capacity: C.capacityFor(L.lvl) };
+      })(),
       siblingWith: player.sibling_with, siblingUntil: player.sibling_until,
       isAdmin: isAdmin(player),
     },
@@ -419,6 +424,7 @@ function checkPois(player, x, y, ts = ts) {
     const already = q.get('SELECT 1 AS x FROM visits WHERE player_id = ? AND poi_key = ?', pid, key);
     if (already) continue;
     q.run('INSERT INTO visits (player_id, poi_key, ts) VALUES (?, ?, ?)', pid, key, ts);
+    G.addXp(pid, poi.type === 'town' ? C.EMPIRE.xp.town : C.EMPIRE.xp.hill);
     // zdolaný kopec odkryje velký kruh okolí (nápad Matěje: rozhled z vrcholu)
     if (poi.type === 'peak') G.addDiscovery(pid, poi.x, poi.y, 700);
     let rewardText = '';
@@ -490,7 +496,10 @@ function applyPosition(player, lat, lon, ts) {
       const kmh = (dist / 1000) / dtH;
       if (kmh > 30) reveal = false; // auto/autobus neodkrývá mlhu
       // pěší tempo se počítá do válečného úsilí (pomáhá v bitvách)
-      if (kmh <= C.WAR_EFFORT.walkMaxKmh && dist > 5) q.run('INSERT INTO walk_log (player_id, ts, m) VALUES (?, ?, ?)', player.id, ts, dist);
+      if (kmh <= C.WAR_EFFORT.walkMaxKmh && dist > 5) {
+        q.run('INSERT INTO walk_log (player_id, ts, m) VALUES (?, ?, ?)', player.id, ts, dist);
+        G.addXp(G.effId(player), (dist / 1000) * C.EMPIRE.xp.perKmWalked);
+      }
     }
   }
   // přítomnost ukládej jen pokud je bod novější než dosavadní (dávka může být starší)

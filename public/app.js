@@ -403,6 +403,8 @@ function updateTabs() {
 // ---------- menu (tři čárky): žebříček / chat / diplomacie ----------
 let drawerTab = 'board';
 let pmWith = null; // soukromá konverzace s hráčem (přes obálku v žebříčku)
+let tradeTo = null; // předvyplněný příjemce nové obchodní nabídky
+let pmInviteFor = null; // po Poslat se zprávou odejde i pozvánka do aliance
 const pmSeen = JSON.parse(localStorage.getItem('supPmSeen') || '{}');
 function pmUnread(otherId) {
   return (STATE.chat || []).some((m) => m.toId === ME.effId && m.playerId === otherId && m.id > (pmSeen[otherId] || 0));
@@ -444,6 +446,11 @@ async function sendChat() {
   if (!t) return;
   $('#chat-text').value = '';
   await api('/api/chat/send', { text: t, toId: pmWith || null });
+  if (pmInviteFor && pmInviteFor === pmWith) {
+    const r = await api('/api/alliance/invite', { playerId: pmInviteFor });
+    if (r.ok) toast('Pozvánka do aliance odeslána.');
+    pmInviteFor = null;
+  }
   refreshState();
 }
 
@@ -485,6 +492,8 @@ function renderDrawer() {
   document.querySelectorAll('#drawer-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.d === drawerTab));
   const c = $('#drawer-content');
   $('#chat-row').classList.toggle('hidden', drawerTab !== 'chat');
+  $('#pm-plus').classList.toggle('hidden', drawerTab !== 'chat' || !pmWith);
+  if (drawerTab !== 'chat' || !pmWith) $('#pm-menu').classList.add('hidden');
   let html = '';
   if (drawerTab === 'board') {
     const board = STATE.players.filter((p) => !p.teamWith)
@@ -1010,7 +1019,7 @@ function renderTrade() {
   <input id="tr-give-n" type="number" placeholder="dávám" min="1"></div>
   <div class="inline"><select id="tr-want-res">${Object.keys(RES_LABEL).map((k) => `<option value="${k}">${RES_LABEL[k]}</option>`).join('')}</select>
   <input id="tr-want-n" type="number" placeholder="chci" min="1"></div>
-  <select id="tr-to"><option value="">Veřejná nabídka (kdokoli)</option>${STATE.players.filter((p) => p.id !== ME.effId && !p.teamWith).map((p) => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
+  <select id="tr-to"><option value="">Veřejná nabídka (kdokoli)</option>${STATE.players.filter((p) => p.id !== ME.effId && !p.teamWith).map((p) => `<option value="${p.id}" ${p.id === tradeTo ? 'selected' : ''}>${p.name}</option>`).join('')}</select>
   <button class="btn" data-act="tradecreate">Vystavit nabídku</button>`;
 
   // města
@@ -1062,7 +1071,13 @@ function renderTrips() {
 function renderEmpire() {
   const my = STATE.players.find((p) => p.id === ME.effId);
   let html = `<h2>${ownerDot(ME.effId)} ${my?.name || ME.name}</h2>`;
-  html += `<div class="row"><span>Provincie</span><b>${my?.provinceCount || 0}</b></div>`;
+  const emp = ME.empire || { level: 1, into: 0, need: 120, capacity: 8 };
+  const over = (my?.provinceCount || 0) - emp.capacity;
+  html += `<div class="row" data-info="empire"><span class="info-u">Úroveň říše</span><b>${emp.level}</b></div>
+    <div class="bar"><i style="width:${Math.min(100, Math.round(emp.into / emp.need * 100))}%"></i></div>
+    <p class="sub">${emp.into} / ${emp.need} XP do další úrovně</p>`;
+  html += `<div class="row"><span>Území</span><b style="color:${over > 0 ? '#C62828' : 'inherit'}">${my?.provinceCount || 0} / ${emp.capacity}</b></div>`;
+  if (over > 0) html += `<p class="sub" style="color:#C62828">Držíš ${over} území nad kapacitu — morálka všech území klesá o ${over * 5}. Získej XP (stavby, vylepšení, výpravy) na další úroveň.</p>`;
   if (STATE.winner) html += `<div class="row"><b>Vítěz hry: ${STATE.winner}</b></div>`;
   // vzdělání
   html += '<h3>Vzdělání (škola)</h3>';
@@ -1233,6 +1248,38 @@ function showTownTrade(town) {
   });
 }
 
+// ---------- plus menu v soukromém chatu ----------
+$('#pm-plus').onclick = (e) => { e.stopPropagation(); $('#pm-menu').classList.toggle('hidden'); };
+document.addEventListener('click', () => $('#pm-menu').classList.add('hidden'));
+$('#pm-menu').querySelectorAll('[data-pmact]').forEach((b) => {
+  b.onclick = async (e) => {
+    e.stopPropagation();
+    $('#pm-menu').classList.add('hidden');
+    const other = pmWith;
+    if (!other) return;
+    if (b.dataset.pmact === 'trade') {
+      tradeTo = other;
+      closeDrawer();
+      activeTab = 'trade'; updateTabs(); renderSheet();
+      toast(`Nabídka pro hráče ${ownerName(other)} — vyplň, co dáváš a co chceš.`);
+    }
+    if (b.dataset.pmact === 'pact') {
+      const r = await api('/api/pact/offer', { playerId: other });
+      if (r.ok) { toast('Nabídka míru odeslána — objeví se v chatu.'); refreshState(); }
+    }
+    if (b.dataset.pmact === 'ally') {
+      if (STATE.alliance) {
+        // předvyplní zprávu; pozvánka se odešle až tlačítkem Poslat
+        $('#chat-text').value = `Pozvánka do aliance „${STATE.alliance.name}" — přidáš se?`;
+        pmInviteFor = other;
+        $('#chat-text').focus();
+      } else if (confirm('Nejsi v žádné alianci. Chceš ji teď založit? Po založení pošleš pozvánku odsud.')) {
+        drawerTab = 'diplo'; pmWith = null; renderDrawer();
+      }
+    }
+  };
+});
+
 // ---------- zpětná vazba ----------
 $('#fb-close').onclick = () => $('#dlg-feedback').classList.add('hidden');
 $('#fb-send').onclick = async () => {
@@ -1279,6 +1326,12 @@ async function renderAdmin() {
 const fmtH = (h) => !isFinite(h) ? '∞' : h < 1 ? `${Math.round(h * 60)} min` : h < 48 ? `${+h.toFixed(1)} h` : `${Math.round(h / 24)} dní`;
 function showInfo(el) {
   hideBubble();
+  if (el.dataset.info === 'empire') {
+    const emp = ME.empire;
+    return showInfoHtml(el, `<b>Úroveň říše ${emp.level}</b>
+      <p class="sub">Určuje, kolik území udržíš bez postihu: teď ${emp.capacity}. Nad kapacitu jde dobývat dál, ale morálka VŠECH tvých území klesá o 5 za každé území navíc.</p>
+      <p class="sub"><b>XP získáš:</b> vylepšení přírody +15, stavba +20, dobytí +10, vyhraná bitva +25, kopec +10, město +15, každý ušlý km +2.</p>`);
+  }
   const provId = +el.dataset.prov;
   const prov = MAPDATA.provinces.find((p) => p.id === provId);
   const st = STATE.provinces.find((p) => p.id === provId);
@@ -1303,6 +1356,9 @@ function showInfo(el) {
       <p class="sub">Verbování pěchoty tu jede o ${RULES.barracks[st.barracks].recruitBonus * 100} % rychleji (další pěšák za ~${fmtH(1 / rate)}). Kasárna jdou stavět jen u domů.</p>`;
   }
   if (!html) return;
+  showInfoHtml(el, html);
+}
+function showInfoHtml(el, html) {
   const b = document.createElement('div');
   b.id = 'pbubble';
   b.innerHTML = html;
@@ -1317,6 +1373,17 @@ function showInfo(el) {
 // ---------- co je nového (changelog) ----------
 // Nový update = přidat záznam NAHORU (vyšší n). Hráčům se ukáže vše, co ještě neviděli.
 const CHANGELOG = [
+  {
+    n: 3, when: '28. 8.',
+    title: 'Úrovně říše',
+    items: [
+      'Říše má ÚROVEŇ a správní kapacitu: kolik území udržíš bez postihu (start 8, každá úroveň +4)',
+      'Nad kapacitu jde dobývat dál, ale morálka všech tvých území klesá — nejdřív buduj, pak válč',
+      'XP získáš za vylepšování přírody, stavby, dobývání, vyhrané bitvy, kopce, města a ušlé km',
+      'Vše vidíš v záložce Říše (ťukni na Úroveň říše pro detail)',
+      'V soukromém chatu je tlačítko + : výměna surovin, nabídka míru, pozvání do aliance',
+    ],
+  },
   {
     n: 2, when: '28. 8.',
     title: 'Chat a obchod',
@@ -1382,6 +1449,7 @@ function tourSteps() {
     { t: 'Morálka — nejdůležitější číslo', x: 'Morálka řídí všechno: produkci, rychlost verbování i sílu v boji. Zvedá ji pevnost a plné zásoby, sráží nedostatek surovin a čerstvé dobytí. TIP: kolonky s tečkovaným podtržením (Morálka, Pěchota…) jsou klikací — vyskočí bublina s čísly pro to konkrétní území.', el: '#sheet-content [data-info="morale"]' },
     { t: 'Jak vznikají vojáci', x: 'Pěchota se verbuje SAMA v každém tvém domě — nemusíš nic mačkat. Při 100 % morálce je nový pěšák za ~3 hodiny; pruh ukazuje, kolik aktuálnímu chybí. Kasárna verbování zrychlí. Louky a pole vojáky nedělají — ale když dobudeš cizí přírodní území, dostaneš na místě 1 pěšáka navíc.', el: '#sheet-content [data-info="recruit"]' },
     { t: 'Stavby', x: 'V sekci Stavba stavíš: PEVNOST chrání obránce (menší poškození), zvedá morálku a skryje posádku před cizími — hodí se všude. KASÁRNA zrychlují verbování (jen u domů). Staví se jedna věc naráz a stojí suroviny.', el: '#sheet' },
+    { t: 'Úroveň říše', x: 'Říše má úroveň — určuje, kolik území udržíš bez postihu (začínáš s 8, každá úroveň +4). Dobývat nad limit jde, ale morálka všech tvých území pak klesá. XP získáš stavěním, vylepšováním, výpravami, ušlými km a vítězstvími. Detail najdeš v záložce Říše.' },
     { t: 'Armáda a rozkazy', x: 'Ťukni na vojáčka na mapě a otevře se panel armády: PŘESUN (na vlastní/volné území), ÚTOK (na cizí), ROZDĚLIT a SLOUČIT. Když na jednom místě stojí víc armád, přepínáš mezi nimi šipkami ‹ ›. Volné území obsadíš tím, že tam armáda prostě dojde. Na spojence z aliance útočit nejde — místo toho jim pošleš Posily.', prep: () => { const a = (STATE.armies || []).find((x) => Object.values(x.units).reduce((s, v) => s + v, 0) > 0); if (a) { sheetPoi = null; sheetProvince = null; sheetArmy = a.id; map.selectedArmy = a.id; activeTab = 'map'; updateTabs(); renderSheet(); } }, el: '#sheet' },
     { t: 'Pochody a GPS trik', x: 'Pochody jsou schválně pomalé (pěchota 110 m/h). ALE: když jsi FYZICKY u armády, pochoduje 4× rychleji a rozkaz platí okamžitě — na dálku má přípravu podle vzdálenosti. Nejlepší postup: dojdi k vojákům, u nich zadej rozkaz a kus cesty jdi s nimi. Funguje to i obráceně: dojdi do cíle a počkej tam na ně.' },
     { t: 'Boj a válečné úsilí', x: 'Bitva probíhá v kolech po 20 minutách — sílu určuje počet, typ jednotek a MORÁLKA; obráncům pomáhá pevnost. Posily můžeš posílat, dokud bitva běží. A hlavně: prvních 3 h bitvy pomáhá POHYB V REÁLU — každý ušlý km = +5 % síla, nově zdolaný kopec = +1 pěšák do bitvy, nově objevené město = +10 % síla. Když se bojuje, jdi ven!' },

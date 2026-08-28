@@ -469,6 +469,18 @@ export function scoreOf(playerId) {
   return { total: parts.territory + parts.army + parts.map + parts.trips + parts.edu, ...parts, counts };
 }
 
+// XP říše: level-up zvyšuje správní kapacitu území
+export function addXp(playerId, amount) {
+  const pl = playerById(playerId);
+  if (!pl || !amount) return;
+  const before = C.levelFor(pl.xp || 0).lvl;
+  q.run('UPDATE players SET xp = COALESCE(xp, 0) + ? WHERE id = ?', amount, playerId);
+  const after = C.levelFor((pl.xp || 0) + amount).lvl;
+  if (after > before) {
+    notify(playerId, 'level', `Říše postoupila na úroveň ${after} — udržíš teď ${C.capacityFor(after)} území bez postihu.`);
+  }
+}
+
 export function capture(provinceId, newOwnerId) {
   const st = q.get('SELECT * FROM province_state WHERE id = ?', provinceId);
   const prov = provinces.get(provinceId);
@@ -479,6 +491,7 @@ export function capture(provinceId, newOwnerId) {
   const winner = playerById(newOwnerId);
   if (oldOwner) notify(oldOwner, 'lost', `Ztratil jsi ${prov.name} — dobyl ho ${winner.name}.`);
   notify(null, 'capture', `${winner.name} ${oldOwner ? 'dobyl' : 'obsadil'} ${prov.name}.`);
+  addXp(newOwnerId, C.EMPIRE.xp.capture);
   // dobytí přírody (bez domu = bez kasáren) od jiného hráče: odměna 1 pěšák na místě
   if (oldOwner && oldOwner !== newOwnerId && prov.kind !== 'house') {
     addUnits(newOwnerId, provinceId, 'infantry', 1);
@@ -509,6 +522,7 @@ function runBattles(now) {
     const prov = provinces.get(b.province_id);
     if (!attackers.length) { q.run('DELETE FROM battles WHERE id = ?', b.id); continue; }
     if (!defenders.length) {
+      addXp(attackers[0].owner_id, C.EMPIRE.xp.battleWon);
       capture(b.province_id, attackers[0].owner_id);
       q.run("UPDATE armies SET stance = 'move' WHERE province_id = ?", b.province_id);
       q.run('DELETE FROM battles WHERE id = ?', b.id);
@@ -529,6 +543,7 @@ function runBattles(now) {
       notify(null, 'battle', `Bitva o ${prov.name} skončila — obě strany padly.`);
     } else if (!after.attackers.length) {
       q.run('DELETE FROM battles WHERE id = ?', b.id);
+      if (st.owner_id) addXp(st.owner_id, C.EMPIRE.xp.battleWon);
       notify(st.owner_id, 'battle', `Ubránil jsi ${prov.name} (ztráty: útočník ${lossAtk}, ty ${lossDef}).`);
     } else if (!after.defenders.length) {
       capture(b.province_id, after.attackers[0].owner_id);
@@ -630,6 +645,10 @@ function economyTick(now, minutes) {
         if ((res.grain || 0) >= g) { addRes(pl.id, 'grain', -g); res.grain -= g; }
       }
     }
+    // správní kapacita: nad limit klesá rovnováha morálky VŠECH území
+    const empLvl = C.levelFor(pl.xp || 0).lvl;
+    const overCap = Math.max(0, owned.length - C.capacityFor(empLvl));
+    const overPenalty = C.EMPIRE.overCapMoralePer * overCap;
     for (const st of owned) {
       const prov = provinces.get(st.id);
       if (!prov) continue;
@@ -662,6 +681,7 @@ function economyTick(now, minutes) {
       let eq = C.MORALE_BASE_EQ + upgMorale;
       if (st.fortress) eq += C.FORTRESS[st.fortress].moraleBonus;
       if (shortages.size) eq -= 25 * shortages.size;
+      eq -= overPenalty;
       eq = Math.min(eq, pl.max_morale);
       const drift = (eq - st.morale) * Math.min(1, C.MORALE_DRIFT * h); // omezené, ať spánek serveru nepřestřelí
       // verbování pěchoty (jen domy)
@@ -683,11 +703,14 @@ function economyTick(now, minutes) {
         if (st.build_kind === 'fortress') {
           q.run('UPDATE province_state SET fortress = fortress + 1, build_kind = NULL, build_until = NULL WHERE id = ?', st.id);
           notify(pl.id, 'build', `Stavba dokončena: pevnost — ${prov.name}.`);
+          addXp(pl.id, C.EMPIRE.xp.building);
         } else if (st.build_kind === 'barracks') {
           q.run('UPDATE province_state SET barracks = barracks + 1, build_kind = NULL, build_until = NULL WHERE id = ?', st.id);
           notify(pl.id, 'build', `Stavba dokončena: kasárna — ${prov.name}.`);
+          addXp(pl.id, C.EMPIRE.xp.building);
         } else if (st.build_kind.startsWith('upg:')) {
           const key = st.build_kind.slice(4);
+          addXp(pl.id, C.EMPIRE.xp.upgrade);
           const ups = JSON.parse(st.upgrades || '{}');
           ups[key] = (ups[key] || 0) + 1;
           q.run('UPDATE province_state SET upgrades = ?, build_kind = NULL, build_until = NULL WHERE id = ?', JSON.stringify(ups), st.id);

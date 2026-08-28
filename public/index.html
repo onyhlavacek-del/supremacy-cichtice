@@ -38,8 +38,14 @@
   <div id="drawer-content"></div>
   <div id="chat-row" class="hidden">
     <select id="chat-to"></select>
+    <button id="pm-plus" class="hidden" aria-label="Akce">+</button>
     <input id="chat-text" placeholder="Napiš zprávu…" maxlength="400" autocomplete="off">
     <button id="chat-send" class="btn small">Poslat</button>
+    <div id="pm-menu" class="hidden">
+      <button data-pmact="trade">Vyměnit suroviny</button>
+      <button data-pmact="pact">Nabídnout mír</button>
+      <button data-pmact="ally">Pozvat do aliance</button>
+    </div>
   </div>
 </aside>
 

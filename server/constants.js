@@ -178,6 +178,22 @@ export const upgradeCost = (def, targetLvl) => {
 };
 
 // Aliance
+// úrovně říše: XP za budování a pohyb, level = správní kapacita území.
+// NAD kapacitu jde dobývat dál, ale morálka VŠECH území klesá (měkký strop).
+export const EMPIRE = {
+  capacityBase: 8,        // level 1 udrží 8 území bez postihu
+  capacityPerLevel: 4,    // každý další level +4
+  overCapMoralePer: 5,    // −rovnováha morálky za každé území nad kapacitu
+  levelStep: 120,         // n-tý level stojí n × 120 XP
+  xp: { upgrade: 15, building: 20, hill: 10, town: 15, battleWon: 25, capture: 10, perKmWalked: 2 },
+};
+export function levelFor(xp) {
+  let lvl = 1, need = EMPIRE.levelStep, rest = xp;
+  while (rest >= need) { rest -= need; lvl++; need = EMPIRE.levelStep * lvl; }
+  return { lvl, into: rest, need };
+}
+export function capacityFor(lvl) { return EMPIRE.capacityBase + EMPIRE.capacityPerLevel * (lvl - 1); }
+
 // válečné úsilí: reálný pohyb BĚHEM bitvy pomáhá v boji (okno od začátku bitvy)
 export const WAR_EFFORT = {
   windowMs: 3 * 3600_000,  // jen první 3 h bitvy
