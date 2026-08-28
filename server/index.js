@@ -293,8 +293,8 @@ function snapshot(player) {
   const allyOf = (playerId) => {
     const pl = G.playerById(playerId);
     if (!pl) return null;
-    const r = q.get('SELECT a.symbol, a.bg FROM alliance_members m JOIN alliances a ON a.id = m.alliance_id WHERE m.player_id = ?', G.effId(pl));
-    return r ? { symbol: r.symbol || 'swords', bg: r.bg || '#1565C0' } : null;
+    const r = q.get('SELECT a.name, a.symbol, a.bg FROM alliance_members m JOIN alliances a ON a.id = m.alliance_id WHERE m.player_id = ?', G.effId(pl));
+    return r ? { name: r.name, symbol: r.symbol || 'swords', bg: r.bg || '#1565C0' } : null;
   };
   const players = q.all('SELECT id, name, color, capital_id, team_with FROM players').map((p) => ({
     id: p.id, name: p.name, color: p.color, capitalId: p.capital_id, teamWith: p.team_with,

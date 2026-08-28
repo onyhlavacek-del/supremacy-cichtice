@@ -325,7 +325,8 @@ function showBubble(prov, st, wx, wy) {
     html = `<b>${prov.name}</b>
       <p class="sub">${kindLabel} · ${st.owner ? ownerName(st.owner) : 'volné území'}${st.owner ? ` · morálka ${st.morale} %` : ''}</p>
       <div class="chips"><span class="chip" data-rlabel="${RES_LABEL[prov.resource]}">${RES_ICON[prov.resource]}${RES_LABEL[prov.resource]}${prov.double ? ' 2×' : ''}</span>
-      ${prov.kind === 'house' ? `<span class="chip" data-rlabel="Peníze (daně)">${RES_ICON.money}daně</span>` : ''}</div>`;
+      ${prov.kind === 'house' ? `<span class="chip" data-rlabel="Peníze (daně)">${RES_ICON.money}daně</span>` : ''}
+      ${(() => { const op = STATE.players.find((p) => p.id === st.owner); return op?.ally ? `<span class="chip" data-rlabel="Aliance">${allyBanner(op.ally, 14)}${op.ally.name || 'aliance'}</span>` : ''; })()}</div>`;
     if (st.fortress) html += `<p class="sub">Pevnost lvl ${st.fortress}</p>`;
     if (st.hidden) html += `<p class="sub">Posádka skrytá (pevnost)</p>`;
     else if (st.garrison?.length) html += st.garrison.map((g) => `<p class="sub">${ownerName(g.owner)}: ${g.size} jednotek</p>`).join('');
@@ -844,7 +845,16 @@ function renderArmy(id) {
     }
     etaTotal = Date.now() + ms;
   }
-  let html = `<h2>${ownerDot(ME.effId)} Armáda (${size})</h2>
+  const stackMates = STATE.armies.filter((x) => !x.path && x.provinceId === a.provinceId && Object.values(x.units).reduce((s, v) => s + v, 0) > 0);
+  const myIdx = stackMates.findIndex((x) => x.id === a.id);
+  let html = `<h2 style="display:flex;align-items:center;gap:8px">${ownerDot(ME.effId)} Armáda (${size})`;
+  if (!a.path && stackMates.length > 1) {
+    html += `<span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+      <button class="btn small ghost" data-act="armycycle" data-dir="-1" data-army="${a.id}">&#8249;</button>
+      <span class="meta">${myIdx + 1}/${stackMates.length}</span>
+      <button class="btn small ghost" data-act="armycycle" data-dir="1" data-army="${a.id}">&#8250;</button></span>`;
+  }
+  html += `</h2>
     <div class="sub">${status}${etaTotal ? ` · celkem ${timeLeft(etaTotal)}` : ''}</div>`;
   if (etaTotal) html += `<p class="sub">Odhad bez zrychlení — když půjdeš fyzicky s nimi nebo dojdeš do cíle, jdou 4× rychleji.</p>`;
   // akční lišta jako v Supremacy
@@ -1031,6 +1041,13 @@ function bindSheetActions(root) {
       if (act === 'split') {
         const n = prompt('Kolik pěchoty oddělit do nové armády?');
         if (n > 0) { await api('/api/army/split', { armyId: +el.dataset.army, units: { infantry: +n } }); refreshState(); }
+      }
+      if (act === 'armycycle') {
+        const cur = STATE.armies.find((x) => x.id === +el.dataset.army);
+        const mates = STATE.armies.filter((x) => !x.path && x.provinceId === cur.provinceId && Object.values(x.units).reduce((s, v) => s + v, 0) > 0);
+        const i = mates.findIndex((x) => x.id === cur.id);
+        const nx = mates[(i + +el.dataset.dir + mates.length) % mates.length];
+        sheetArmy = nx.id; map.selectedArmy = nx.id; renderSheet();
       }
       if (act === 'cancelorder') { const r = await api('/api/order/cancel', { armyId: +el.dataset.army }); if (r.ok) refreshState(); }
       if (act === 'merge') { const r = await api('/api/army/merge', { armyId: +el.dataset.army }); if (r.ok) { toast('Armády sloučeny.'); refreshState(); } }

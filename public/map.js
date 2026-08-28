@@ -374,13 +374,14 @@ class TeslaMap {
     this._machinesVisible = false;
     if (!this.state || !this.data || this.scale < 0.3) return;
     // vlajkový obrázek za sadu: první vlastněné vylepšení v tomhle pořadí
+    // jen STROJE — postavy (horník, farmář…) chodí malé mezi dělníky, ne jako velký stroj
     const FLAGSHIP = {
-      field: [['harvester', 'kombajn'], ['irrigation', 'zavlazovani'], ['granary', 'sypka'], ['farmers', 'farmar']],
-      pond: [['boat', 'lodka'], ['fishermen', 'rybar']],
-      forest: [['tractor', 'traktor'], ['chainsaw', 'motorova-pila'], ['lumberjacks', 'drevorubec']],
-      mine: [['drill', 'vrtna-souprava'], ['cart', 'dulni-vozik'], ['miners', 'hornik']],
-      oil: [['derrick', 'vrtna-vez'], ['pumpjack', 'pumpjack'], ['tanker', 'cisterna'], ['drillers', 'hornik']],
-      gas: [['gastower', 'tezebni-vez'], ['compressor', 'kompresor'], ['drillers', 'hornik']],
+      field: [['harvester', 'kombajn'], ['irrigation', 'zavlazovani'], ['granary', 'sypka']],
+      pond: [['boat', 'lodka']],
+      forest: [['tractor', 'traktor'], ['chainsaw', 'motorova-pila']],
+      mine: [['drill', 'vrtna-souprava'], ['cart', 'dulni-vozik']],
+      oil: [['derrick', 'vrtna-vez'], ['pumpjack', 'pumpjack'], ['tanker', 'cisterna']],
+      gas: [['gastower', 'tezebni-vez'], ['compressor', 'kompresor']],
     };
     const SET_FOR = (p) => p.kind === 'pond' ? 'pond' : p.kind === 'forest' ? 'forest'
       : p.resource === 'oil' ? 'oil' : p.resource === 'gas' ? 'gas'
@@ -591,63 +592,6 @@ class TeslaMap {
     this.particles = keep.slice(-160);
   }
 
-  // malý prapor aliance (barva + znak) u území členů
-  _allyFlag(wx, wy, ally) {
-    const { ctx } = this;
-    const px = this.sx(wx) - Math.min(26, this.scale * 14), py = this.sy(wy) - Math.min(22, this.scale * 12);
-    const w = 13, h = 15;
-    ctx.beginPath();
-    ctx.moveTo(px - w / 2, py - h / 2);
-    ctx.lineTo(px + w / 2, py - h / 2);
-    ctx.lineTo(px + w / 2, py + h * 0.2);
-    ctx.quadraticCurveTo(px + w / 2, py + h / 2, px, py + h / 2 + 1);
-    ctx.quadraticCurveTo(px - w / 2, py + h / 2, px - w / 2, py + h * 0.2);
-    ctx.closePath();
-    ctx.fillStyle = ally.bg || '#1565C0';
-    ctx.fill();
-    ctx.strokeStyle = this.dark ? '#191A1C' : '#FFFFFF';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-    // zjednodušený bílý znak
-    ctx.strokeStyle = '#fff';
-    ctx.fillStyle = '#fff';
-    ctx.lineWidth = 1.6;
-    ctx.lineCap = 'round';
-    const g = 3.4;
-    ctx.beginPath();
-    switch (ally.symbol) {
-      case 'shield':
-        ctx.moveTo(px, py - g); ctx.lineTo(px + g, py - g * 0.5); ctx.lineTo(px + g * 0.6, py + g); ctx.lineTo(px, py + g * 1.3); ctx.lineTo(px - g * 0.6, py + g); ctx.lineTo(px - g, py - g * 0.5); ctx.closePath(); ctx.fill();
-        break;
-      case 'crown':
-        ctx.moveTo(px - g, py + g * 0.8); ctx.lineTo(px - g, py - g * 0.4); ctx.lineTo(px - g * 0.4, py + g * 0.1); ctx.lineTo(px, py - g); ctx.lineTo(px + g * 0.4, py + g * 0.1); ctx.lineTo(px + g, py - g * 0.4); ctx.lineTo(px + g, py + g * 0.8); ctx.closePath(); ctx.fill();
-        break;
-      case 'tower':
-        ctx.rect(px - g * 0.6, py - g, g * 1.2, g * 2.2); ctx.fill();
-        ctx.rect(px - g, py - g, g * 0.45, g * 0.6); ctx.rect(px + g * 0.55, py - g, g * 0.45, g * 0.6); ctx.fill();
-        break;
-      case 'star': {
-        for (let i = 0; i < 5; i++) {
-          const a1 = -Math.PI / 2 + i * 2 * Math.PI / 5;
-          const a2 = a1 + Math.PI / 5;
-          if (i === 0) ctx.moveTo(px + Math.cos(a1) * g * 1.2, py + Math.sin(a1) * g * 1.2);
-          else ctx.lineTo(px + Math.cos(a1) * g * 1.2, py + Math.sin(a1) * g * 1.2);
-          ctx.lineTo(px + Math.cos(a2) * g * 0.5, py + Math.sin(a2) * g * 0.5);
-        }
-        ctx.closePath(); ctx.fill();
-        break;
-      }
-      case 'tree':
-        ctx.moveTo(px, py - g * 1.2); ctx.lineTo(px + g, py + g * 0.5); ctx.lineTo(px - g, py + g * 0.5); ctx.closePath(); ctx.fill();
-        ctx.fillRect(px - g * 0.2, py + g * 0.5, g * 0.4, g * 0.7);
-        break;
-      default: // swords
-        ctx.moveTo(px - g, py - g); ctx.lineTo(px + g, py + g);
-        ctx.moveTo(px + g, py - g); ctx.lineTo(px - g, py + g);
-        ctx.stroke();
-    }
-  }
-
   _drawSelection() {
     const { ctx } = this;
     // glow obrys vybrané provincie
@@ -696,11 +640,6 @@ class TeslaMap {
         ctx.strokeStyle = this.ownerColor(owner);
         ctx.lineWidth = isSel ? 3 : 1.6;
         ctx.stroke();
-        // prapor aliance vlastníka
-        if (this.scale > 0.5) {
-          const pl = this.playersById.get(owner);
-          if (pl?.ally) this._allyFlag(prov.c[0], prov.c[1], pl.ally);
-        }
         // pevnost = "hradby" (dvojitý zubatý obrys jako v Supremacy)
         if (st?.fortress > 0) {
           this._poly(prov.poly);
@@ -851,7 +790,7 @@ class TeslaMap {
       if (!a.path) {
         const n = standCount.get(a.provinceId) || 0;
         standCount.set(a.provinceId, n + 1);
-        stackOff = n * 30; // px doprava za každou další armádu
+        stackOff = n * 42; // px doprava za každou další armádu
       }
       let pos = [prov.c[0] + stackOff / this.scale, prov.c[1]];
       let currentRoute = null, frac = 0;
@@ -1011,10 +950,12 @@ class TeslaMap {
   armyAt(x, y) {
     if (!this.armyHits) return null;
     const px = this.sx(x), py = this.sy(y);
+    let best = null, bestD = 20;
     for (const h of this.armyHits) {
-      if (Math.hypot(h.px - px, h.py - py) < 18) return h.id;
+      const d = Math.hypot(h.px - px, h.py - py);
+      if (d < bestD) { best = h.id; bestD = d; }
     }
-    return null;
+    return best;
   }
   provinceAt(x, y) {
     if (!this.data) return null;

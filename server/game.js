@@ -364,6 +364,11 @@ export function capture(provinceId, newOwnerId) {
   const winner = playerById(newOwnerId);
   if (oldOwner) notify(oldOwner, 'lost', `Ztratil jsi ${prov.name} — dobyl ho ${winner.name}.`);
   notify(null, 'capture', `${winner.name} ${oldOwner ? 'dobyl' : 'obsadil'} ${prov.name}.`);
+  // dobytí přírody (bez domu = bez kasáren) od jiného hráče: odměna 1 pěšák na místě
+  if (oldOwner && oldOwner !== newOwnerId && prov.kind !== 'house') {
+    addUnits(newOwnerId, provinceId, 'infantry', 1);
+    notify(newOwnerId, 'capture', `Za dobytí ${prov.name} se přidal 1 pěšák.`);
+  }
   if (oldOwner) {
     const loser = playerById(oldOwner);
     if (loser && loser.capital_id === provinceId) {
