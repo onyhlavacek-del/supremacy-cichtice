@@ -192,6 +192,9 @@ CREATE TABLE IF NOT EXISTS meta (
 
 // migrace: soukromé zprávy v chatu
 try { db.exec('ALTER TABLE chat ADD COLUMN to_id INTEGER'); } catch { /* sloupec už existuje */ }
+// migrace: znak a barva aliance
+try { db.exec("ALTER TABLE alliances ADD COLUMN symbol TEXT DEFAULT 'swords'"); } catch { /* už existuje */ }
+try { db.exec("ALTER TABLE alliances ADD COLUMN bg TEXT DEFAULT '#1565C0'"); } catch { /* už existuje */ }
 // migrace: vylepšení přírodních území
 try { db.exec("ALTER TABLE province_state ADD COLUMN upgrades TEXT DEFAULT '{}'"); } catch { /* sloupec už existuje */ }
 

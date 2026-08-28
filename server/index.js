@@ -290,8 +290,15 @@ function snapshot(player) {
   for (const t of q.all('SELECT id, name, team_with FROM players WHERE team_with IS NOT NULL')) {
     teamNames.set(t.team_with, [...(teamNames.get(t.team_with) || []), t.name]);
   }
+  const allyOf = (playerId) => {
+    const pl = G.playerById(playerId);
+    if (!pl) return null;
+    const r = q.get('SELECT a.symbol, a.bg FROM alliance_members m JOIN alliances a ON a.id = m.alliance_id WHERE m.player_id = ?', G.effId(pl));
+    return r ? { symbol: r.symbol || 'swords', bg: r.bg || '#1565C0' } : null;
+  };
   const players = q.all('SELECT id, name, color, capital_id, team_with FROM players').map((p) => ({
     id: p.id, name: p.name, color: p.color, capitalId: p.capital_id, teamWith: p.team_with,
+    ally: allyOf(p.id),
     display: teamNames.has(p.id) ? [p.name, ...teamNames.get(p.id)].join(' + ') : p.name,
     provinceCount: q.get('SELECT COUNT(*) AS n FROM province_state WHERE owner_id = ?', p.id).n,
     unitCount: q.all('SELECT units FROM armies WHERE owner_id = ?', p.id)
@@ -339,7 +346,7 @@ function snapshot(player) {
     }));
   const visits = new Set(q.all('SELECT poi_key FROM visits WHERE player_id = ?', pid).map((r) => r.poi_key));
   const trip = q.get("SELECT * FROM trips WHERE player_id = ? AND status = 'active'", player.id);
-  const myAlliance = q.get('SELECT a.id, a.name FROM alliances a JOIN alliance_members m ON m.alliance_id = a.id WHERE m.player_id = ?', pid);
+  const myAlliance = q.get('SELECT a.id, a.name, a.symbol, a.bg FROM alliances a JOIN alliance_members m ON m.alliance_id = a.id WHERE m.player_id = ?', pid);
   return {
     me: {
       id: player.id, effId: pid, name: player.name, color: player.color,
@@ -821,10 +828,12 @@ const routes = {
     send(res, 200, { ok: true });
   },
   'POST /api/alliance/create': async (req, res, player) => {
-    const { name } = await readBody(req);
+    const { name, symbol, bg } = await readBody(req);
     const pid = G.effId(player);
     if (q.get('SELECT 1 AS x FROM alliance_members WHERE player_id = ?', pid)) return send(res, 400, { error: 'Už jsi v alianci.' });
-    q.run('INSERT INTO alliances (name) VALUES (?)', String(name || 'Aliance').slice(0, 30));
+    const sym = ['swords', 'shield', 'crown', 'tower', 'star', 'tree'].includes(symbol) ? symbol : 'swords';
+    const color = /^#[0-9A-Fa-f]{6}$/.test(String(bg || '')) ? bg : '#1565C0';
+    q.run('INSERT INTO alliances (name, symbol, bg) VALUES (?, ?, ?)', String(name || 'Aliance').slice(0, 30), sym, color);
     const a = q.get('SELECT id FROM alliances ORDER BY id DESC LIMIT 1');
     q.run('INSERT INTO alliance_members (alliance_id, player_id) VALUES (?, ?)', a.id, pid);
     send(res, 200, { ok: true });

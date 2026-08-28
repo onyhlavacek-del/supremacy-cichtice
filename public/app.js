@@ -30,6 +30,18 @@ const UNITS = {
   tank: { label: 'Tank', edu: 4 },
   heavytank: { label: 'Těžký tank', edu: 5 },
 };
+// znaky aliancí (SVG, žádná emoji)
+const ALLY_SYMBOLS = {
+  swords: '<svg viewBox="0 0 16 16"><path d="M3 3l7 7M13 3L6 10M3 13l3-3M13 13l-3-3" stroke="#fff" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>',
+  shield: '<svg viewBox="0 0 16 16"><path d="M8 2l5 1.5v4c0 3-2 5-5 6.5C5 12.5 3 10.5 3 7.5v-4z" fill="#fff"/></svg>',
+  crown: '<svg viewBox="0 0 16 16"><path d="M3 11l-1-6 3.5 2.5L8 3l2.5 4.5L14 5l-1 6z" fill="#fff"/></svg>',
+  tower: '<svg viewBox="0 0 16 16"><path d="M5 14V6H4V3h2v1h1V3h2v1h1V3h2v3h-1v8z" fill="#fff"/></svg>',
+  star: '<svg viewBox="0 0 16 16"><path d="M8 2l1.8 3.9 4.2.5-3.1 2.9.8 4.2L8 11.4 4.3 13.5l.8-4.2L2 6.4l4.2-.5z" fill="#fff"/></svg>',
+  tree: '<svg viewBox="0 0 16 16"><path d="M8 2l3.5 5H9.8l3 4.5H9v2.5H7V11.5H3.2l3-4.5H4.5z" fill="#fff"/></svg>',
+};
+const ALLY_LABEL = { swords: 'Meče', shield: 'Štít', crown: 'Koruna', tower: 'Věž', star: 'Hvězda', tree: 'Strom' };
+const allyBanner = (ally, size = 16) => `<span class="ally-banner" style="background:${ally.bg};width:${size}px;height:${Math.round(size * 1.15)}px">${ALLY_SYMBOLS[ally.symbol] || ALLY_SYMBOLS.swords}</span>`;
+
 const EDU = ['Základní výcvik', 'Řidičský kurz', 'Dělostřelecká škola', 'Technická škola', 'Vojenská akademie'];
 
 // obrázky od Matěje (public/img)
@@ -387,6 +399,7 @@ function updateTabs() {
 
 // ---------- menu (tři čárky): žebříček / chat / diplomacie ----------
 let drawerTab = 'board';
+const allyPick = { symbol: 'swords', bg: '#1565C0' };
 let lastChatSeen = 0;
 $('#refresh-btn').onclick = async () => {
   const el = $('#refresh-btn');
@@ -463,7 +476,7 @@ function renderDrawer() {
     }
     html += '<h3>Aliance</h3>';
     if (STATE.alliance) {
-      html += `<div class="row"><span>${STATE.alliance.name}</span><span class="meta">${STATE.alliance.members.map(ownerName).join(', ')}</span></div>
+      html += `<div class="row"><span style="display:flex;align-items:center;gap:8px">${STATE.alliance.symbol ? allyBanner({ symbol: STATE.alliance.symbol, bg: STATE.alliance.bg }, 20) : ''}${STATE.alliance.name}</span><span class="meta">${STATE.alliance.members.map(ownerName).join(', ')}</span></div>
         <select id="ally-invite">${STATE.players.filter((p) => p.id !== ME.effId && !p.teamWith).map((p) => `<option value="${p.id}">${p.name}</option>`).join('')}</select>
         <button class="btn" data-act="allyinvite">Pozvat do aliance</button>
         <button class="btn ghost" data-act="allyleave">Opustit alianci</button>`;
@@ -472,12 +485,17 @@ function renderDrawer() {
         html += `<div class="row"><span>Pozvánka: ${inv.name}</span><button class="btn small" data-act="allyaccept" data-id="${inv.id}">Přijmout</button></div>`;
       }
       html += `<input id="ally-name" placeholder="Název aliance" maxlength="30">
+        <p class="sub" style="margin-top:8px">Znak aliance:</p>
+        <div class="ally-pick" id="ally-symbols">${Object.keys(ALLY_SYMBOLS).map((k) => `<button data-sym="${k}" class="${k === allyPick.symbol ? 'on' : ''}" style="background:${allyPick.bg}" title="${ALLY_LABEL[k]}">${ALLY_SYMBOLS[k]}</button>`).join('')}</div>
+        <div class="ally-pick" id="ally-colors">${['#1565C0', '#C62828', '#2E7D32', '#6A1B9A', '#EF6C00', '#37474F'].map((c) => `<button data-bg="${c}" class="${c === allyPick.bg ? 'on' : ''}" style="background:${c}"></button>`).join('')}</div>
         <button class="btn" data-act="allycreate">Založit alianci (max 2 členové)</button>`;
     }
     html += `<p class="sub" style="margin-top:10px">Aliance = spojenci (sdílí mapu, nemůžou na sebe útočit). Mír = jen pakt o neútočení.</p>`;
   }
   c.innerHTML = html;
   if (drawerTab === 'chat') c.scrollTop = c.scrollHeight;
+  c.querySelectorAll('#ally-symbols button').forEach((b) => { b.onclick = () => { allyPick.symbol = b.dataset.sym; renderDrawer(); }; });
+  c.querySelectorAll('#ally-colors button').forEach((b) => { b.onclick = () => { allyPick.bg = b.dataset.bg; renderDrawer(); }; });
   bindSheetActions(c);
 }
 
@@ -507,8 +525,9 @@ function ownerName(id) {
   return p?.display || p?.name || '?';
 }
 function ownerDot(id) {
-  const c = STATE.players.find((p) => p.id === id)?.color || '#8B877F';
-  return `<span class="owner-dot" style="background:${c}"></span>`;
+  const p = STATE.players.find((p) => p.id === id);
+  if (p?.ally) return allyBanner(p.ally);
+  return `<span class="owner-dot" style="background:${p?.color || '#8B877F'}"></span>`;
 }
 
 // cenovky se surovinami; červeně, co chybí
@@ -1026,7 +1045,7 @@ function bindSheetActions(root) {
       if (act === 'tripstart') { const r = await api('/api/trip/start', { kind: el.dataset.kind }); if (r.ok) toast('Výprava zahájena. Šťastnou cestu!'); refreshState(); }
       if (act === 'tripstop') { await api('/api/trip/stop', {}); refreshState(); }
       if (act === 'edustart') { const r = await api('/api/education/start', {}); if (r.ok) refreshState(); }
-      if (act === 'allycreate') { const r = await api('/api/alliance/create', { name: $('#ally-name').value }); if (r.ok) refreshState(); }
+      if (act === 'allycreate') { const r = await api('/api/alliance/create', { name: $('#ally-name').value, symbol: allyPick.symbol, bg: allyPick.bg }); if (r.ok) refreshState(); }
       if (act === 'allyinvite') { const r = await api('/api/alliance/invite', { playerId: +$('#ally-invite').value }); if (r.ok) toast('Pozvánka odeslána.'); }
       if (act === 'allyaccept') { const r = await api('/api/alliance/accept', { allianceId: +el.dataset.id }); if (r.ok) refreshState(); }
       if (act === 'allyleave') { await api('/api/alliance/leave', {}); refreshState(); }

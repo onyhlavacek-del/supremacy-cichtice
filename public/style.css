@@ -117,6 +117,21 @@ body {
 #sheet h3 { font-size: 13px; margin: 12px 0 6px; color: #6B675F; text-transform: uppercase; letter-spacing: .4px; }
 .sub { color: #8B877F; font-size: 12.5px; margin-bottom: 8px; }
 .owner-dot { width: 10px; height: 10px; border-radius: 5px; display: inline-block; flex: none; }
+/* aliancni baner: stitek se znakem */
+.ally-banner {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  border-radius: 3px 3px 45% 45%; box-shadow: 0 1px 2px #00000030;
+  vertical-align: middle;
+}
+.ally-banner svg { width: 72%; height: 72%; }
+.ally-pick { display: flex; gap: 6px; margin: 6px 0; }
+.ally-pick button {
+  width: 36px; height: 40px; border: 2px solid transparent; border-radius: 6px 6px 45% 45%;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.ally-pick button svg { width: 20px; height: 20px; }
+.ally-pick button.on { border-color: #2B2A28; }
+@media (prefers-color-scheme: dark) { .ally-pick button.on { border-color: #E8E6E1; } }
 
 .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid #F0EDE8; font-size: 14px; }
 .row:last-child { border-bottom: 0; }
