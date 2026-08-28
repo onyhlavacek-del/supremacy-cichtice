@@ -249,6 +249,9 @@ export function orderMove(player, armyId, destId, stance) {
   const path = findPath(a.province_id, destId);
   if (!path || !path.length) return { error: 'Cesta nenalezena.' };
   const destOwner = q.get('SELECT owner_id FROM province_state WHERE id = ?', destId)?.owner_id;
+  if (destOwner && destOwner !== pid && allied(pid, destOwner) && stance === 'attack') {
+    return { error: 'Na spojence útočit nemůžeš — pošli armádu jako Přesun (posily).' };
+  }
   if (destOwner && !allied(pid, destOwner)) {
     if (stance !== 'attack') return { error: 'Cíl patří nepříteli — pošli armádu jako útok.' };
     if (siblingProtected(pid, destOwner, destId)) return { error: 'Ochranná lhůta: na společný dům zatím nemůžeš útočit.' };
@@ -643,6 +646,9 @@ export function applyPresenceBoosts(player) {
   if (boosted.length) notify(player.id, 'presence', `Jsi na místě — dokončeno hned: ${boosted.join(', ')}.`);
   return boosted;
 }
+
+// úklid: aliance bez členů smaž
+q.run('DELETE FROM alliances WHERE id NOT IN (SELECT DISTINCT alliance_id FROM alliance_members)');
 
 // při startu: armádám s trasou přes rybník (staré rozkazy) trasu přepočítej
 {

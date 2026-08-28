@@ -319,7 +319,9 @@ function showBubble(prov, st, wx, wy) {
     html = `<b>Neprozkoumané území</b><p class="sub">Dojdi sem pěšky, nebo zdolej blízký kopec.</p>`;
   } else {
     const kindLabel = { house: 'Dům', field: 'Pole', meadow: 'Louka', forest: 'Les', pond: 'Rybník' }[prov.kind] || prov.kind;
-    const hostile = !!st.owner;
+    const myAllies = new Set([ME.effId, ...(STATE.alliance?.members || [])]);
+    const hostile = !!st.owner && !myAllies.has(st.owner);
+    const alliedTerr = !!st.owner && myAllies.has(st.owner) && st.owner !== ME.effId;
     html = `<b>${prov.name}</b>
       <p class="sub">${kindLabel} · ${st.owner ? ownerName(st.owner) : 'volné území'}${st.owner ? ` · morálka ${st.morale} %` : ''}</p>
       <div class="chips"><span class="chip" data-rlabel="${RES_LABEL[prov.resource]}">${RES_ICON[prov.resource]}${RES_LABEL[prov.resource]}${prov.double ? ' 2×' : ''}</span>
@@ -333,7 +335,7 @@ function showBubble(prov, st, wx, wy) {
       html += `<div class="btn-row" style="margin-top:6px">`;
       for (const a of idle.slice(0, 2)) {
         const size = Object.values(a.units).reduce((s, v) => s + v, 0);
-        html += `<button class="btn small ${hostile ? 'danger' : ''}" data-act="sendhere" data-army="${a.id}" data-dest="${prov.id}" data-stance="${hostile ? 'attack' : 'move'}">${hostile ? 'Útok' : 'Poslat'} (${size})</button>`;
+        html += `<button class="btn small ${hostile ? 'danger' : ''}" data-act="sendhere" data-army="${a.id}" data-dest="${prov.id}" data-stance="${hostile ? 'attack' : 'move'}">${hostile ? 'Útok' : alliedTerr ? 'Posily' : 'Poslat'} (${size})</button>`;
       }
       html += `</div>`;
     }

@@ -591,6 +591,63 @@ class TeslaMap {
     this.particles = keep.slice(-160);
   }
 
+  // malý prapor aliance (barva + znak) u území členů
+  _allyFlag(wx, wy, ally) {
+    const { ctx } = this;
+    const px = this.sx(wx) - Math.min(26, this.scale * 14), py = this.sy(wy) - Math.min(22, this.scale * 12);
+    const w = 13, h = 15;
+    ctx.beginPath();
+    ctx.moveTo(px - w / 2, py - h / 2);
+    ctx.lineTo(px + w / 2, py - h / 2);
+    ctx.lineTo(px + w / 2, py + h * 0.2);
+    ctx.quadraticCurveTo(px + w / 2, py + h / 2, px, py + h / 2 + 1);
+    ctx.quadraticCurveTo(px - w / 2, py + h / 2, px - w / 2, py + h * 0.2);
+    ctx.closePath();
+    ctx.fillStyle = ally.bg || '#1565C0';
+    ctx.fill();
+    ctx.strokeStyle = this.dark ? '#191A1C' : '#FFFFFF';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    // zjednodušený bílý znak
+    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = '#fff';
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = 'round';
+    const g = 3.4;
+    ctx.beginPath();
+    switch (ally.symbol) {
+      case 'shield':
+        ctx.moveTo(px, py - g); ctx.lineTo(px + g, py - g * 0.5); ctx.lineTo(px + g * 0.6, py + g); ctx.lineTo(px, py + g * 1.3); ctx.lineTo(px - g * 0.6, py + g); ctx.lineTo(px - g, py - g * 0.5); ctx.closePath(); ctx.fill();
+        break;
+      case 'crown':
+        ctx.moveTo(px - g, py + g * 0.8); ctx.lineTo(px - g, py - g * 0.4); ctx.lineTo(px - g * 0.4, py + g * 0.1); ctx.lineTo(px, py - g); ctx.lineTo(px + g * 0.4, py + g * 0.1); ctx.lineTo(px + g, py - g * 0.4); ctx.lineTo(px + g, py + g * 0.8); ctx.closePath(); ctx.fill();
+        break;
+      case 'tower':
+        ctx.rect(px - g * 0.6, py - g, g * 1.2, g * 2.2); ctx.fill();
+        ctx.rect(px - g, py - g, g * 0.45, g * 0.6); ctx.rect(px + g * 0.55, py - g, g * 0.45, g * 0.6); ctx.fill();
+        break;
+      case 'star': {
+        for (let i = 0; i < 5; i++) {
+          const a1 = -Math.PI / 2 + i * 2 * Math.PI / 5;
+          const a2 = a1 + Math.PI / 5;
+          if (i === 0) ctx.moveTo(px + Math.cos(a1) * g * 1.2, py + Math.sin(a1) * g * 1.2);
+          else ctx.lineTo(px + Math.cos(a1) * g * 1.2, py + Math.sin(a1) * g * 1.2);
+          ctx.lineTo(px + Math.cos(a2) * g * 0.5, py + Math.sin(a2) * g * 0.5);
+        }
+        ctx.closePath(); ctx.fill();
+        break;
+      }
+      case 'tree':
+        ctx.moveTo(px, py - g * 1.2); ctx.lineTo(px + g, py + g * 0.5); ctx.lineTo(px - g, py + g * 0.5); ctx.closePath(); ctx.fill();
+        ctx.fillRect(px - g * 0.2, py + g * 0.5, g * 0.4, g * 0.7);
+        break;
+      default: // swords
+        ctx.moveTo(px - g, py - g); ctx.lineTo(px + g, py + g);
+        ctx.moveTo(px + g, py - g); ctx.lineTo(px - g, py + g);
+        ctx.stroke();
+    }
+  }
+
   _drawSelection() {
     const { ctx } = this;
     // glow obrys vybrané provincie
@@ -639,6 +696,11 @@ class TeslaMap {
         ctx.strokeStyle = this.ownerColor(owner);
         ctx.lineWidth = isSel ? 3 : 1.6;
         ctx.stroke();
+        // prapor aliance vlastníka
+        if (this.scale > 0.5) {
+          const pl = this.playersById.get(owner);
+          if (pl?.ally) this._allyFlag(prov.c[0], prov.c[1], pl.ally);
+        }
         // pevnost = "hradby" (dvojitý zubatý obrys jako v Supremacy)
         if (st?.fortress > 0) {
           this._poly(prov.poly);
