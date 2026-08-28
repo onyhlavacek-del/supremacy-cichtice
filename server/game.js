@@ -935,8 +935,23 @@ function economyTick(now, minutes) {
           addUnits(pl.id, st.id, 'infantry', n);
         }
       }
-      q.run('UPDATE province_state SET morale = ?, recruit_progress = ? WHERE id = ?',
-        Math.max(5, Math.min(100, st.morale + drift)), rp, st.id);
+      const newMorale = Math.max(5, Math.min(100, st.morale + drift));
+      q.run('UPDATE province_state SET morale = ?, recruit_progress = ? WHERE id = ?', newMorale, rp, st.id);
+      // vzpoura: bídné území (pod 20 %) se může odtrhnout — čím nižší morálka, tím spíš
+      if (newMorale < C.REVOLT.moraleBelow && st.id !== pl.home_id && st.id !== pl.capital_id) {
+        const garrison = q.get('SELECT 1 AS x FROM armies WHERE province_id = ? AND owner_id = ? AND path IS NULL', st.id, pl.id);
+        if (!garrison) {
+          const misery = (C.REVOLT.moraleBelow - newMorale) / C.REVOLT.moraleBelow; // 0..0.75
+          const chance = misery * C.REVOLT.dailyMaxChance * (h / 24);
+          if (Math.random() < chance) {
+            q.run('UPDATE province_state SET owner_id = NULL, morale = 45, captured_ts = NULL, build_kind = NULL, build_until = NULL WHERE id = ?', st.id);
+            notify(pl.id, 'revolt', `VZPOURA: ${prov.name} se kvůli mizérii odtrhl od tvé říše.`);
+            notify(null, 'revolt', `${prov.name} se vzbouřilo proti hráči ${pl.name} a osamostatnilo se.`);
+            pushRefresh();
+            continue;
+          }
+        }
+      }
       // dokončené stavby
       if (st.build_kind && st.build_until <= now) {
         if (st.build_kind === 'fortress') {

@@ -194,6 +194,10 @@ export function levelFor(xp) {
 }
 export function capacityFor(lvl) { return EMPIRE.capacityBase + EMPIRE.capacityPerLevel * (lvl - 1); }
 
+// vzpoura: území s morálkou pod prahem se může odtrhnout (šance roste s bídou);
+// nikdy domov/hlavní město a nikdy území s posádkou vlastníka
+export const REVOLT = { moraleBelow: 20, dailyMaxChance: 0.5 };
+
 // válečné úsilí: reálný pohyb BĚHEM bitvy pomáhá v boji (okno od začátku bitvy)
 export const WAR_EFFORT = {
   windowMs: 3 * 3600_000,  // jen první 3 h bitvy

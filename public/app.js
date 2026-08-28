@@ -1379,7 +1379,8 @@ function showInfo(el) {
   if (el.dataset.info === 'morale') {
     html = `<b>Morálka ${st.morale} %</b>
       <p class="sub">Řídí všechno: produkce i verbování tu teď jedou na ${st.morale} % výkonu.${prov?.kind === 'house' && st.owner === ME.effId ? ` Další pěšák za ~${fmtH(1 / rate)}.` : ''}</p>
-      <p class="sub"><b>Jak ji zvednout:</b> postav pevnost, drž všechny zásoby v plusu (každá chybějící surovina −25) a vylepšuj přírodu. Vzdělání zvyšuje strop. Dobyté území začíná na 30 %.</p>`;
+      <p class="sub"><b>Jak ji zvednout:</b> postav pevnost, drž všechny zásoby v plusu (každá chybějící surovina −25) a vylepšuj přírodu. Vzdělání zvyšuje strop. Dobyté území začíná na 30 %.</p>
+      <p class="sub" style="color:#C62828">Pozor: pod 20 % hrozí VZPOURA — území se může odtrhnout (nehrozí domovu a územím s posádkou).</p>`;
   } else if (el.dataset.info === 'recruit') {
     html = `<b>Verbování pěchoty</b>
       <p class="sub">Každý tvůj dům verbuje sám: 1 pěšák za ~${RULES.recruitHoursPerInf} h při 100 % morálce. Tady při ${st.morale} %${bonus ? ` a s kasárnami (+${bonus * 100} %)` : ''} to je další za ~${fmtH(1 / rate)}.</p>
@@ -1410,6 +1411,16 @@ function showInfoHtml(el, html) {
 // ---------- co je nového (changelog) ----------
 // Nový update = přidat záznam NAHORU (vyšší n). Hráčům se ukáže vše, co ještě neviděli.
 const CHANGELOG = [
+  {
+    n: 4, when: '28. 8.',
+    title: 'Cesty a vzpoury',
+    items: [
+      'Armády pochodují po SKUTEČNÝCH cestách z mapy a vždy nejkratší trasou — na mapě vidíš přesnou trasu se zatáčkami',
+      'Terénem si střihnou jen když by cesta byla přes 2× delší; přes rybník nikdy',
+      'VZPOURA: území s morálkou pod 20 % se může odtrhnout a zneutralnět (čím nižší morálka, tím spíš)',
+      'Domov, hlavní město a území s tvou posádkou se nikdy nevzbouří — bídě zabráníš i stavbou pevnosti a doplněním zásob',
+    ],
+  },
   {
     n: 3, when: '28. 8.',
     title: 'Úrovně říše',
@@ -1483,7 +1494,7 @@ function tourSteps() {
     { t: 'Vítej v Supremacy Čichtice', x: 'Hraje se na skutečné mapě vesnice — každý dům, pole i rybník existuje doopravdy. Cílem je rozšířit svou říši a ovládnout Čichtice. Pojď, všechno ti UKÁŽU přímo ve hře. Ťukej na Dál.', prep: closePanels },
     { t: 'Zásoby surovin', x: 'Nahoře jsou tvoje zásoby: peníze a suroviny. Zelené číslo = kolik za hodinu přibývá, červené = ubývá. Ťuknutím na surovinu uvidíš rozpis, co ji vyrábí a co spotřebovává. Nenech nic spadnout do minusu — nedostatek sráží morálku!', el: '#topbar' },
     { t: 'Tvůj dům = hlavní město', x: `${home ? home.name : 'Tvůj dům'} je tvoje hlavní město: produkuje surovinu, vybírá daně a hlavně VERBUJE VOJÁKY. Když ti ho někdo dobude, přijdeš o část peněz a klesne ti morálka — braň ho. Otevřel jsem ti jeho panel.`, prep: openHome, el: '#sheet' },
-    { t: 'Morálka — nejdůležitější číslo', x: 'Morálka řídí všechno: produkci, rychlost verbování i sílu v boji. Zvedá ji pevnost a plné zásoby, sráží nedostatek surovin a čerstvé dobytí. TIP: kolonky s tečkovaným podtržením (Morálka, Pěchota…) jsou klikací — vyskočí bublina s čísly pro to konkrétní území.', el: '#sheet-content [data-info="morale"]' },
+    { t: 'Morálka — nejdůležitější číslo', x: 'Morálka řídí všechno: produkci, rychlost verbování i sílu v boji. Zvedá ji pevnost a plné zásoby, sráží nedostatek surovin a čerstvé dobytí. Pod 20 % hrozí VZPOURA — území se může odtrhnout. TIP: kolonky s tečkovaným podtržením (Morálka, Pěchota…) jsou klikací — vyskočí bublina s čísly pro to konkrétní území.', el: '#sheet-content [data-info="morale"]' },
     { t: 'Jak vznikají vojáci', x: 'Pěchota se verbuje SAMA v každém tvém domě — nemusíš nic mačkat. Při 100 % morálce je nový pěšák za ~3 hodiny; pruh ukazuje, kolik aktuálnímu chybí. Kasárna verbování zrychlí. Louky a pole vojáky nedělají — ale když dobudeš cizí přírodní území, dostaneš na místě 1 pěšáka navíc.', el: '#sheet-content [data-info="recruit"]' },
     { t: 'Stavby', x: 'V sekci Stavba stavíš: PEVNOST chrání obránce (menší poškození), zvedá morálku a skryje posádku před cizími — hodí se všude. KASÁRNA zrychlují verbování (jen u domů). Staví se jedna věc naráz a stojí suroviny.', el: '#sheet' },
     { t: 'Úroveň říše', x: 'Říše má úroveň — určuje, kolik území udržíš bez postihu (začínáš s 8, každá úroveň +4). Dobývat nad limit jde, ale morálka všech tvých území pak klesá. XP získáš stavěním, vylepšováním, výpravami, ušlými km a vítězstvími. Detail najdeš v záložce Říše.' },
