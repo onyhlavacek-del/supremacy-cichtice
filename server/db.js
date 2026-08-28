@@ -184,6 +184,15 @@ CREATE TABLE IF NOT EXISTS pacts (
   PRIMARY KEY (a, b)
 );
 
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,              -- chyba | napad | jine
+  text TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+  sent INTEGER DEFAULT 0           -- doslo na Discord?
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT

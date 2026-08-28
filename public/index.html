@@ -105,6 +105,24 @@
   </div>
 </div>
 
+<!-- zpětná vazba -->
+<div id="dlg-feedback" class="dlg hidden">
+  <div class="dlg-card">
+    <h2>Zpětná vazba</h2>
+    <p>Napiš, co nefunguje nebo co bys přidal — přijde to Matějovi na Discord.</p>
+    <select id="fb-kind">
+      <option value="chyba">Něco nefunguje (chyba)</option>
+      <option value="napad">Nápad na vylepšení</option>
+      <option value="jine">Jiné</option>
+    </select>
+    <textarea id="fb-text" rows="4" maxlength="900" placeholder="Popiš to vlastními slovy…" style="width:100%;margin-top:8px;border:1px solid #DAD6CE;border-radius:10px;padding:10px;font:inherit;resize:vertical"></textarea>
+    <div class="btn-row">
+      <button id="fb-send" class="btn">Odeslat</button>
+      <button id="fb-close" class="btn ghost">Zavřít</button>
+    </div>
+  </div>
+</div>
+
 <!-- tutoriál -->
 <div id="tutorial" class="dlg hidden">
   <div class="dlg-card" id="tut-card">

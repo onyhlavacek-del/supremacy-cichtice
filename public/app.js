@@ -999,7 +999,8 @@ function renderEmpire() {
   for (const e of STATE.events.slice(0, 25)) {
     html += `<div class="row"><span style="font-size:13px">${e.text}</span><span class="meta">${new Date(e.ts).toLocaleTimeString('cs', { hour: '2-digit', minute: '2-digit' })}</span></div>`;
   }
-  if (ME.isAdmin) html += `<button class="btn" data-act="admin" style="margin-top:12px">Admin konzole</button>`;
+  html += `<button class="btn ghost" data-act="feedback" style="margin-top:12px">Zpětná vazba — nahlásit chybu / nápad</button>`;
+  if (ME.isAdmin) html += `<button class="btn" data-act="admin" style="margin-top:6px">Admin konzole</button>`;
   html += `<div class="btn-row" style="margin-top:14px">
     <button class="btn ghost small" data-act="tutorial">Tutoriál</button>
     <button class="btn ghost small" data-act="fullscreen">Celá obrazovka</button>
@@ -1056,6 +1057,7 @@ function bindSheetActions(root) {
       if (act === 'logout') { await api('/api/logout', {}); location.reload(); }
       if (act === 'tutorial') showTutorial(0);
       if (act === 'admin') renderAdmin();
+      if (act === 'feedback') $('#dlg-feedback').classList.remove('hidden');
       if (act === 'admin-refresh') renderAdmin();
       if (act === 'admin-color') {
         const color = prompt(`Nová barva hráče ${el.dataset.name} (#RRGGBB):\nmodrá #1565C0 · zelená #2E7D32 · fialová #6A1B9A · oranžová #EF6C00 · tyrkys #00838F`, '#1565C0');
@@ -1129,6 +1131,17 @@ function showTownTrade(town) {
     };
   });
 }
+
+// ---------- zpětná vazba ----------
+$('#fb-close').onclick = () => $('#dlg-feedback').classList.add('hidden');
+$('#fb-send').onclick = async () => {
+  const r = await api('/api/feedback', { kind: $('#fb-kind').value, text: $('#fb-text').value });
+  if (r.ok) {
+    $('#fb-text').value = '';
+    $('#dlg-feedback').classList.add('hidden');
+    toast(r.sent ? 'Díky! Posláno Matějovi na Discord.' : 'Díky! Uloženo (Discord teď nejel, ale hlášení se neztratí).');
+  }
+};
 
 // ---------- admin konzole (jen správce) ----------
 async function renderAdmin() {

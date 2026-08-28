@@ -789,6 +789,33 @@ const routes = {
     q.run("UPDATE trades SET status = 'cancelled' WHERE id = ? AND from_id = ?", +id, pid);
     send(res, 200, { ok: true });
   },
+  // zpětná vazba hráčů -> Discord (bot token se bere z BACKUP_BOT_TOKEN)
+  'POST /api/feedback': async (req, res, player) => {
+    const { kind, text } = await readBody(req);
+    const t = String(text || '').trim().slice(0, 900);
+    const k = ['chyba', 'napad', 'jine'].includes(kind) ? kind : 'jine';
+    if (t.length < 3) return send(res, 400, { error: 'Napiš aspoň pár slov.' });
+    const last = q.get('SELECT ts FROM feedback WHERE player_id = ? ORDER BY id DESC LIMIT 1', player.id);
+    if (last && Date.now() - last.ts < 60_000) return send(res, 400, { error: 'Počkej minutku mezi hlášeními.' });
+    q.run('INSERT INTO feedback (player_id, kind, text, ts) VALUES (?, ?, ?, ?)', player.id, k, t, Date.now());
+    const fid = q.get('SELECT last_insert_rowid() AS id').id;
+    let sent = false;
+    const token = (process.env.BACKUP_BOT_TOKEN || '').trim();
+    const channel = (process.env.FEEDBACK_CHANNEL_ID || '1533794658789101628').trim();
+    if (token) {
+      try {
+        const label = { chyba: 'CHYBA', napad: 'NÁPAD', jine: 'POZNÁMKA' }[k];
+        const r = await fetch(`https://discord.com/api/v10/channels/${channel}/messages`, {
+          method: 'POST',
+          headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'SupremacyCichtice/1.0' },
+          body: JSON.stringify({ content: `[hra] ${label} od **${player.name}**:\n${t}` }),
+        });
+        sent = r.ok;
+      } catch { /* zůstane v DB */ }
+    }
+    if (sent) q.run('UPDATE feedback SET sent = 1 WHERE id = ?', fid);
+    send(res, 200, { ok: true, sent });
+  },
   'POST /api/chat/send': async (req, res, player) => {
     const { text, toId } = await readBody(req);
     const t = String(text || '').trim().slice(0, 400);
