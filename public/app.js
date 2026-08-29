@@ -1502,7 +1502,7 @@ function showInfo(el) {
   if (el.dataset.info === 'morale') {
     html = `<b>Morálka ${st.morale} %</b>
       <p class="sub">Řídí všechno: produkce i verbování tu teď jedou na ${st.morale} % výkonu.${prov?.kind === 'house' && st.owner === ME.effId ? ` Další pěšák za ~${fmtH(1 / rate)}.` : ''}</p>
-      <p class="sub"><b>Jak ji zvednout:</b> postav pevnost, drž všechny zásoby v plusu (každá chybějící surovina −25) a vylepšuj přírodu. Vzdělání zvyšuje strop. Dobyté území začíná na 30 %.</p>
+      <p class="sub"><b>Jak ji zvednout:</b> postav pevnost (+5 až +25), drž všechny zásoby v plusu (každá chybějící surovina −25) a na přírodě pořiď skladovací vylepšení (+5). Dobyté území začíná na 30 %.</p>
       <p class="sub">Morálka se mění postupně jako výtah: podmínky určí CÍLOVÉ patro a kabina k němu sjíždí/stoupá 12 % zbývající cesty za hodinu — nic neskáče naráz.</p>
       <p class="sub" style="color:#C62828">Pozor: pod 20 % hrozí VZPOURA — území se může odtrhnout (nehrozí domovu a územím s posádkou).</p>`;
   } else if (el.dataset.info === 'recruit') {
@@ -1628,7 +1628,7 @@ function tourSteps() {
     { t: 'Mlha a objevování', x: 'Mapa je zahalená mlhou — odkrýváš ji CHŮZÍ s otevřenou aplikací (povol polohu). Z auta to nejde, hlídá se tempo. Zdolaný kopec odkryje velký kruh okolí. Bez dat to funguje taky: trasa se uloží do telefonu a nahraje se sama, až chytíš Wi-Fi.' },
     { t: 'Výpravy = mini-Strava', x: 'V záložce Výpravy zapni „Jdu pěšky" nebo „Jedu na kole" a vyraž ven. Odměna je podle SKUTEČNĚ ušlé vzdálenosti. Kopce dávají suroviny a vojáky, města odemykají obchod. Za 3/10/25 zdolaných kopců jsou odznaky s penězi.', prep: () => { sheetArmy = null; map.selectedArmy = null; activeTab = 'trips'; updateTabs(); renderSheet(); }, el: '#sheet' },
     { t: 'Obchod', x: 'Obchoduješ přímo s ostatními („dám X za Y") nebo v objevených městech na NPC trhu — čím dál město, tím lepší kurz. Ve městě, kde fyzicky stojíš, si můžeš založit vlastní obchod, který pak sám vydělává.', prep: () => { activeTab = 'trade'; updateTabs(); renderSheet(); }, el: '#sheet' },
-    { t: 'Vzdělání a lepší jednotky', x: 'Silnější jednotky než pěchota odemkneš VZDĚLÁNÍM. Do kurzu se zapisuješ FYZICKY u školy (čp. 91) — dojdi k ní a ťukni na ni. Vyšší vzdělání navíc zvyšuje strop morálky.', prep: () => { activeTab = 'map'; updateTabs(); renderSheet(); } },
+    { t: 'Vzdělání a lepší jednotky', x: 'Silnější jednotky než pěchota odemkneš VZDĚLÁNÍM. Do kurzu se zapisuješ FYZICKY u školy (čp. 91) — dojdi k ní a ťukni na ni. Každá úroveň odemkne silnější jednotku (kavalerie, obrněné auto, dělo, tank…).', prep: () => { activeTab = 'map'; updateTabs(); renderSheet(); } },
     { t: 'Menu: žebříček a diplomacie', x: 'Pod třemi čárkami je žebříček (vede se na BODY: území, vojsko, objevená mapa, výpravy, vzdělání) a společný chat — obchodní nabídky a nabídky míru tam chodí jako karty s tlačítky. Soukromě si píšeš přes OBÁLKU u jména v žebříčku (červená tečka = nová zpráva). V Diplomacii je: MÍR (pakt o neútočení) a ALIANCE (max 3 hráči — sdílí mapu, nemůžou na sebe útočit a mají štít u jména).', el: '#menu-btn' },
     { t: 'Obnovení a zpětná vazba', x: 'Šipka obnoví hru a sama pozná, když vyjde nová verze. A když něco nefunguje, máš nápad nebo dotaz — v záložce Říše je tlačítko Zpětná vazba, zpráva přijde rovnou Ondrovi.', el: '#refresh-btn' },
     { t: 'A je to!', x: 'Teď víš všechno podstatné. Průvodce si kdykoli pustíš znovu: Říše → Tutoriál. Hodně štěstí — a hlavně choď ven, hra odměňuje pohyb!', prep: closePanels },
