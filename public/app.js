@@ -1536,6 +1536,16 @@ function showInfoHtml(el, html) {
 // Nový update = přidat záznam NAHORU (vyšší n). Hráčům se ukáže vše, co ještě neviděli.
 const CHANGELOG = [
   {
+    n: 5, when: '29. 8.',
+    title: 'Dezerce a oslavy',
+    items: [
+      'DEZERCE: posádka na území s morálkou pod 20 % postupně utíká (u dna až 35 % vojáků denně) — bída užírá i armádu',
+      'Vzpoury zpřísněny: pod 20 % morálky je šance odtržení vždy aspoň 5 % denně (u dna 42 %)',
+      'Zdolání kopce slaví konfetami a válcem štěstí — a surovina, co padne, je vždy ta, které máš nejmíň',
+      'Objevení města slaví mincí a odemčeným obchodem',
+    ],
+  },
+  {
     n: 4, when: '28. 8.',
     title: 'Cesty a vzpoury',
     items: [
