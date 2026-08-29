@@ -87,6 +87,9 @@ export async function restoreBackup() {
 let lastUploadedMtime = 0;
 let uploading = false;
 
+let onlineFn = () => [];
+export function setOnlineProvider(fn) { onlineFn = fn; }
+
 async function uploadBackup(reason) {
   if (!enabled() || uploading) return;
   try {
@@ -115,7 +118,9 @@ async function uploadBackup(reason) {
       } catch { /* při pochybnostech nahraj */ }
     }
     const body = new FormData();
-    body.append('payload_json', JSON.stringify({ content: `Záloha hry (${reason}) — ${new Date().toISOString()} — hráčů: ${localPlayers}` }));
+    let onlineTxt = '';
+    try { const on = onlineFn(); onlineTxt = on.length ? ` (online: ${on.join(', ')})` : ' (online: nikdo)'; } catch { /* nevadí */ }
+    body.append('payload_json', JSON.stringify({ content: `Záloha hry (${reason}) — ${new Date().toISOString()} — hráčů: ${localPlayers}${onlineTxt}` }));
     body.append('files[0]', new Blob([readFileSync(DB_PATH)]), 'game.db');
     const res = await fetchRetry(`${API}/channels/${CHANNEL}/messages`, { method: 'POST', headers: H(), body });
     lastUploadedMtime = mtime;

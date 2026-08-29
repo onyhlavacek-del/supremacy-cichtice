@@ -59,6 +59,11 @@ function hashPass(pass, salt) { return scryptSync(pass, salt, 32).toString('hex'
 
 // ---------- SSE ----------
 const sseClients = new Map(); // playerId -> Set(res)
+// zálohy hlásí, kdo má zrovna hru otevřenou (živé SSE spojení)
+import('./backup.js').then((B) => B.setOnlineProvider?.(() =>
+  [...sseClients.entries()].filter(([, set]) => set.size > 0)
+    .map(([id]) => G.playerById(id)?.name).filter(Boolean)
+)).catch(() => {});
 G.onPush((playerId, obj) => {
   const msg = `data: ${JSON.stringify(obj)}\n\n`;
   const targets = playerId == null ? [...sseClients.values()].flatMap((s) => [...s]) : [...(sseClients.get(playerId) || [])];
