@@ -1541,7 +1541,7 @@ const CHANGELOG = [
     items: [
       'DEZERCE: posádka na území s morálkou pod 20 % postupně utíká (u dna až 35 % vojáků denně) — bída užírá i armádu',
       'Vzpoury zpřísněny: pod 20 % morálky je šance odtržení vždy aspoň 5 % denně (u dna 42 %)',
-      'Zdolání kopce slaví konfetami a válcem štěstí — a surovina, co padne, je vždy ta, které máš nejmíň',
+      'Zdolání kopce slaví konfetami a válcem štěstí — zatoč si o suroviny',
       'Objevení města slaví mincí a odemčeným obchodem',
     ],
   },
