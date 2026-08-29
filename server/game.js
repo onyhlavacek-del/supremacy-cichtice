@@ -943,7 +943,7 @@ function economyTick(now, minutes) {
         const garrison = q.get('SELECT 1 AS x FROM armies WHERE province_id = ? AND owner_id = ? AND path IS NULL', st.id, pl.id);
         if (!garrison) {
           const misery = (C.REVOLT.moraleBelow - newMorale) / C.REVOLT.moraleBelow; // 0..0.75
-          const chance = misery * C.REVOLT.dailyMaxChance * (h / 24);
+          const chance = (C.REVOLT.dailyBase + misery * C.REVOLT.dailyMaxChance) * (h / 24);
           if (Math.random() < chance) {
             q.run('UPDATE province_state SET owner_id = NULL, morale = 45, captured_ts = NULL, build_kind = NULL, build_until = NULL WHERE id = ?', st.id);
             notify(pl.id, 'revolt', `VZPOURA: ${prov.name} se kvůli mizérii odtrhl od tvé říše.`);
