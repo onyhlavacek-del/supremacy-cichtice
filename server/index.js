@@ -942,7 +942,9 @@ const routes = {
     const count = q.get('SELECT COUNT(*) AS n FROM alliance_members WHERE alliance_id = ?', my.alliance_id).n;
     if (count >= C.ALLIANCE_MAX_MEMBERS) return send(res, 400, { error: `Aliance má max ${C.ALLIANCE_MAX_MEMBERS} členy.` });
     q.run('INSERT OR IGNORE INTO alliance_invites (alliance_id, player_id) VALUES (?, ?)', my.alliance_id, +playerId);
+    q.run('INSERT INTO chat (player_id, ts, text, to_id) VALUES (?, ?, ?, ?)', pid, Date.now(), `[allyinv:${my.alliance_id}]`, +playerId);
     G.notify(+playerId, 'alliance', `${player.name} tě zve do aliance.`);
+    G.pushRefresh();
     send(res, 200, { ok: true });
   },
   'POST /api/alliance/accept': async (req, res, player) => {

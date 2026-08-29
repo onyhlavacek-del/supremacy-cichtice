@@ -481,6 +481,16 @@ function chatMsgHtml(m) {
     const offered = STATE.pacts.some((x) => x.status === 'offered' && x.a === from);
     let act = active ? '<span class="meta">mír uzavřen</span>' : offered && m.toId === ME.effId ? `<button class="btn small" data-act="pactaccept" data-id="${from}">Přijmout mír</button>` : '<span class="meta">nabídka míru</span>';
     card = `<div class="offer-card"><span class="meta" style="display:flex;align-items:center;gap:6px">${DOVE_SVG} nabídka míru</span><div class="btn-row">${act}</div></div>`;
+  } else if (m.text.startsWith('[allyinv:')) {
+    const aid = +m.text.slice(9, -1);
+    const pl = STATE.players.find((p) => p.id === m.playerId);
+    const invited = m.toId === ME.effId;
+    const pending = invited && (STATE.allianceInvites || []).some((i) => i.id === aid);
+    const inAlly = STATE.alliance?.id === aid;
+    let act = '';
+    if (pending) act = `<div class="btn-row"><button class="btn small" data-act="allyaccept" data-id="${aid}">Přijmout</button></div>`;
+    else if (inAlly && invited) act = '<span class="meta">přijato</span>';
+    card = `<div class="offer-card"><span class="meta" style="display:flex;align-items:center;gap:6px">${pl?.ally ? allyBanner(pl.ally, 15) : ''} pozvánka do aliance${pl?.ally?.name ? ` <b>${pl.ally.name}</b>` : ''}</span>${act}</div>`;
   } else if (m.text.startsWith('[ally:')) {
     const nm = m.text.slice(6, -1).replace(/</g, '&lt;');
     const pl = STATE.players.find((p) => p.id === m.playerId);
@@ -531,7 +541,7 @@ function renderDrawer() {
       if (last) { pmSeen[pmWith] = Math.max(pmSeen[pmWith] || 0, last.id); localStorage.setItem('supPmSeen', JSON.stringify(pmSeen)); }
     } else {
       // společný chat (karty nabídek, míru a aliancí uprostřed proudu)
-      const msgs = (STATE.chat || []).filter((m) => !m.toId || m.text.startsWith('[trade:') || m.text.startsWith('[pact:'));
+      const msgs = (STATE.chat || []).filter((m) => !m.toId || m.text.startsWith('[trade:') || m.text.startsWith('[pact:') || m.text.startsWith('[allyinv:'));
       if (!msgs.length) html = '<p class="sub" style="margin-top:10px">Zatím žádné zprávy. Napiš první!</p>';
       for (const m of msgs) html += chatMsgHtml(m);
       html += `<button class="btn ghost small" data-act="gototrade" style="margin-top:8px">Vytvořit obchodní nabídku</button>`;
