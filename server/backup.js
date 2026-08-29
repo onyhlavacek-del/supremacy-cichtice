@@ -57,10 +57,22 @@ export async function restoreBackup() {
   if (existsSync(DB_PATH)) { blog('lokální DB existuje, nestahuji'); return; }
   blog('lokální DB chybí — hledám zálohu v kanálu');
   try {
-    const res = await fetchRetry(`${API}/channels/${CHANNEL}/messages?limit=50`, { headers: H() });
-    const msgs = await res.json();
-    if (!Array.isArray(msgs)) throw new Error('odpověď není pole: ' + JSON.stringify(msgs).slice(0, 150));
-    const backs = msgs.filter((m) => (m.attachments || []).some((a) => a.filename === 'game.db'));
+    const fetchBacks = async () => {
+      const res = await fetchRetry(`${API}/channels/${CHANNEL}/messages?limit=50`, { headers: H() });
+      const msgs = await res.json();
+      if (!Array.isArray(msgs)) throw new Error('odpověď není pole: ' + JSON.stringify(msgs).slice(0, 150));
+      return { msgs, backs: msgs.filter((m) => (m.attachments || []).some((a) => a.filename === 'game.db')) };
+    };
+    let { msgs, backs } = await fetchBacks();
+    // SOUBĚH s koncem předchozí instance (deploy/restart): její závěrečná záloha
+    // může dorazit pár vteřin PO našem startu. Když nejnovější záloha není čerstvá,
+    // chvíli počkej a mrkni znovu — jinak ztratíme poslední minuty hry (viz Nikol 29. 8.).
+    const newestTs = backs.length ? Date.parse(backs[0].timestamp) : 0;
+    if (Date.now() - newestTs > 15_000) {
+      blog('nejnovější záloha není čerstvá — čekám 20 s na případnou závěrečnou zálohu staré instance');
+      await new Promise((r) => setTimeout(r, 20_000));
+      ({ msgs, backs } = await fetchBacks());
+    }
     blog(`zpráv: ${msgs.length}, záloh: ${backs.length}`);
     for (const m of backs) { // od nejnovější
       const att = m.attachments.find((a) => a.filename === 'game.db');
