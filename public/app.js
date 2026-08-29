@@ -1503,6 +1503,7 @@ function showInfo(el) {
     html = `<b>Morálka ${st.morale} %</b>
       <p class="sub">Řídí všechno: produkce i verbování tu teď jedou na ${st.morale} % výkonu.${prov?.kind === 'house' && st.owner === ME.effId ? ` Další pěšák za ~${fmtH(1 / rate)}.` : ''}</p>
       <p class="sub"><b>Jak ji zvednout:</b> postav pevnost, drž všechny zásoby v plusu (každá chybějící surovina −25) a vylepšuj přírodu. Vzdělání zvyšuje strop. Dobyté území začíná na 30 %.</p>
+      <p class="sub">Morálka se mění postupně jako výtah: podmínky určí CÍLOVÉ patro a kabina k němu sjíždí/stoupá 12 % zbývající cesty za hodinu — nic neskáče naráz.</p>
       <p class="sub" style="color:#C62828">Pozor: pod 20 % hrozí VZPOURA — území se může odtrhnout (nehrozí domovu a územím s posádkou).</p>`;
   } else if (el.dataset.info === 'recruit') {
     html = `<b>Verbování pěchoty</b>
