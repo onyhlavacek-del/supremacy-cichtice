@@ -941,6 +941,24 @@ function economyTick(now, minutes) {
       // vzpoura: bídné území (pod 20 %) se může odtrhnout — čím nižší morálka, tím spíš
       if (newMorale < C.REVOLT.moraleBelow && st.id !== pl.home_id && st.id !== pl.capital_id) {
         const garrison = q.get('SELECT 1 AS x FROM armies WHERE province_id = ? AND owner_id = ? AND path IS NULL', st.id, pl.id);
+        if (garrison) {
+          // posádka vzpouře brání, ale bída ji užírá: dezerce po vojácích
+          const misery2 = Math.min(1, (C.REVOLT.moraleBelow - newMorale) / (C.REVOLT.moraleBelow - 5));
+          const pDesert = misery2 * C.DESERTION.dailyMaxChance * (h / 24);
+          for (const ga of q.all('SELECT * FROM armies WHERE province_id = ? AND owner_id = ? AND path IS NULL', st.id, pl.id)) {
+            const u = JSON.parse(ga.units);
+            let lost = 0;
+            for (const k of Object.keys(u)) {
+              const n0 = u[k];
+              for (let i = 0; i < n0; i++) if (Math.random() < pDesert) { u[k]--; lost++; }
+            }
+            if (lost) {
+              q.run('UPDATE armies SET units = ? WHERE id = ?', JSON.stringify(u), ga.id);
+              notify(pl.id, 'desert', `Dezerce: z posádky v ${prov.name} ${lost === 1 ? 'utekl 1 voják' : lost < 5 ? `utekli ${lost} vojáci` : `uteklo ${lost} vojáků`} (bída pod 20 % morálky).`);
+            }
+          }
+          cleanupEmptyArmies();
+        }
         if (!garrison) {
           const misery = (C.REVOLT.moraleBelow - newMorale) / C.REVOLT.moraleBelow; // 0..0.75
           const chance = (C.REVOLT.dailyBase + misery * C.REVOLT.dailyMaxChance) * (h / 24);
