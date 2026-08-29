@@ -202,6 +202,28 @@ function fairSplit(poly) {
   }
 }
 
+// jednorázově (29. 8. 2026): vrácení účtu Nikol — ztratil ho souběh záloh při deployi.
+// Přihlašovací údaje pochází z její závěrečné zálohy; dostane čerstvý startovní balíček.
+if (!metaGet('nikol_restore_2908')) {
+  const nameTaken = q.get("SELECT id FROM players WHERE name = 'Nikol'");
+  const HOME_N = 27;
+  const homeSt = q.get('SELECT owner_id FROM province_state WHERE id = ?', HOME_N);
+  if (!nameTaken && !homeSt?.owner_id) {
+    q.run(`INSERT INTO players (name, pass_hash, salt, color, capital_id, home_id, created)
+           VALUES ('Nikol', 'e52193c807a45a5b18af653ea3a4c4e23cf62fc54ad5e5b9cd9da626e0396424', 'bb92efbec5f3e743', '#AD1457', ?, ?, ?)`,
+      HOME_N, HOME_N, 1788024010859);
+    const nid = q.get("SELECT id FROM players WHERE name = 'Nikol'").id;
+    q.run('UPDATE province_state SET owner_id = ?, morale = 75 WHERE id = ?', nid, HOME_N);
+    const homeProv = G.provinces.get(HOME_N);
+    if (homeProv) G.addDiscovery(nid, homeProv.c[0], homeProv.c[1], 320);
+    for (const [r, v] of Object.entries(C.START_RESOURCES)) G.addRes(nid, r, v);
+    G.addRes(nid, 'money', C.START_MONEY);
+    G.addUnits(nid, HOME_N, 'infantry', C.START_INFANTRY);
+    console.log('Účet Nikol obnoven (race při deployi 29. 8.) — přihlásí se původním heslem.');
+  }
+  metaSet('nikol_restore_2908', '1');
+}
+
 // jednorázově (28. 8. 2026 večer, pokyn Matěje): 3 Lukášova území srazit na morálku 25
 if (!metaGet('lukas_moral25_2808')) {
   const lukas = q.get("SELECT id, home_id, capital_id FROM players WHERE name = 'Lukáš Liščák'");
