@@ -129,8 +129,7 @@ function connectSSE() {
       const d = JSON.parse(e.data);
       if (d.type === 'hello') return;
       if (d.type === 'refresh') { refreshState(); return; }
-      if (d.type === 'hillwin') { celebrateHill(d); refreshState(); return; }
-      if (d.type === 'townwin') { celebrateTown(d); refreshState(); return; }
+      if (d.type === 'hillwin' || d.type === 'townwin') { maybeCelebrate(d); refreshState(); return; }
       if (d.text) toast(d.text);
       refreshState();
     } catch { /* ignore */ }
@@ -1261,6 +1260,14 @@ function showTownTrade(town) {
 
 // ---------- oslava zdolaného kopce: konfety + válec surovin ----------
 let hwTimer = null;
+let hwShownTs = 0; // ochrana proti dvojímu zobrazení (SSE + snapshot)
+function maybeCelebrate(d) {
+  if (!d || (d.ts && d.ts <= hwShownTs)) return;
+  hwShownTs = d.ts || Date.now();
+  if (d.type === 'townwin') celebrateTown(d);
+  else celebrateHill(d);
+  api('/api/celebration/ack', {});
+}
 function hwConfetti(ov) {
   const cv = $('#hw-confetti');
   cv.width = innerWidth; cv.height = innerHeight;
@@ -1771,6 +1778,9 @@ async function enterGame() {
   if (home) { map.centerOn(0, 0, 0.35); map.animateTo(home.c[0], home.c[1], 1.7, 1000); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
   // poprvé na tomhle zařízení: pusť tutoriál
+  if (ME.pendingCelebration && localStorage.getItem('supTourSeen')) {
+    setTimeout(() => maybeCelebrate(ME.pendingCelebration), 900);
+  }
   if (!localStorage.getItem('supTourSeen')) {
     localStorage.setItem('supChlogSeen', String(CHANGELOG[0].n)); // nováček: novinky jsou pro něj samozřejmost
     setTimeout(() => startTour(), 1400);

@@ -405,6 +405,7 @@ function snapshot(player) {
       capitalId: G.playerById(pid).capital_id, homeId: G.playerById(pid).home_id,
       resources: G.resOf(pid), ...((b) => ({ balances: b.net, resFlow: { prod: b.prod, cons: b.cons, src: b.src } }))(balances(pid)),
       maxMorale: G.playerById(pid).max_morale,
+      pendingCelebration: (() => { try { const c = G.playerById(pid).pending_celebration; return c ? JSON.parse(c) : null; } catch { return null; } })(),
       empire: (() => {
         const x = G.playerById(pid).xp || 0;
         const L = C.levelFor(x);
@@ -494,12 +495,16 @@ function checkPois(player, x, y, ts = ts) {
             soldierTxt = ` a ${nSold}× pěchota (dorazí domů)`;
           }
           rewardText = `+${amounts[res1]} ${C.RES_LABEL[res1]}${soldierTxt} (ušlé ${walkedKm.toFixed(1)} km)`;
-          G.pushLive(pid, { type: 'hillwin', name: poi.name, res: res1, amount: amounts[res1], soldiers: nSold });
+          const hillPayload = { type: 'hillwin', name: poi.name, res: res1, amount: amounts[res1], soldiers: nSold, ts };
+          q.run('UPDATE players SET pending_celebration = ? WHERE id = ?', JSON.stringify(hillPayload), pid);
+          G.pushLive(pid, hillPayload);
         } else {
           const r = Math.round(C.TOWN_REWARD_BASE * (1 + effKm / 20));
           G.addRes(pid, 'money', r);
           rewardText = `+${r} peněz, obchod odemčen (kurz ×${C.townPriceMult(poi.km).toFixed(1)})`;
-          G.pushLive(pid, { type: 'townwin', name: poi.name, money: r });
+          const townPayload = { type: 'townwin', name: poi.name, money: r, ts };
+          q.run('UPDATE players SET pending_celebration = ? WHERE id = ?', JSON.stringify(townPayload), pid);
+          G.pushLive(pid, townPayload);
         }
       } else if (speed <= maxSpeed && effKm < 0.4) {
         rewardText = 'objeveno — ale ušel jsi míň než 400 m (auto?), bez odměny';
@@ -883,6 +888,11 @@ const routes = {
     send(res, 200, { ok: true });
   },
   // zpětná vazba hráčů -> Discord (bot token se bere z BACKUP_BOT_TOKEN)
+  // potvrzení zobrazené oslavy (kopec/město) — už se nemá ukazovat znovu
+  'POST /api/celebration/ack': async (req, res, player) => {
+    q.run('UPDATE players SET pending_celebration = NULL WHERE id = ?', G.effId(player));
+    send(res, 200, { ok: true });
+  },
   'POST /api/feedback': async (req, res, player) => {
     const { kind, text } = await readBody(req);
     const t = String(text || '').trim().slice(0, 900);

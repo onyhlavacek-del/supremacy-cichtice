@@ -214,6 +214,8 @@ try { db.exec("ALTER TABLE alliances ADD COLUMN symbol TEXT DEFAULT 'swords'"); 
 try { db.exec("ALTER TABLE alliances ADD COLUMN bg TEXT DEFAULT '#1565C0'"); } catch { /* už existuje */ }
 // migrace: trasa armády po skutečných cestách (pole úseků polyliny)
 try { db.exec('ALTER TABLE armies ADD COLUMN route TEXT'); } catch { /* už existuje */ }
+// migrace: nezobrazená oslava (kopec/město) čekající na příští otevření hry
+try { db.exec('ALTER TABLE players ADD COLUMN pending_celebration TEXT'); } catch { /* už existuje */ }
 // migrace: XP říše
 try { db.exec('ALTER TABLE players ADD COLUMN xp REAL DEFAULT 0'); } catch { /* už existuje */ }
 // migrace: přejmenování hráče (login zůstává přes původní jméno)
