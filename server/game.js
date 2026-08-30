@@ -668,21 +668,25 @@ export function scoreOf(playerId) {
   const members = [playerId, ...q.all('SELECT id FROM players WHERE team_with = ?', playerId).map((r) => r.id)];
   const ph = members.map(() => '?').join(',');
   const rows = q.all(`SELECT x, y, r FROM discovery WHERE player_id IN (${ph})`, ...members);
+  // jen kruhy v rozsahu herní mapy (~80 km) — chození 100+ km daleko body nedává
+  const inMap = rows.filter((c) => c.x * c.x + c.y * c.y <= 80_000 ** 2);
   let cached = scoreAreaCache.get(playerId);
-  if (!cached || cached.key !== rows.length) {
-    // sjednocení kruhů přes mřížku 60 m — bez dvojího počítání překryvů
+  if (!cached || cached.key !== inMap.length) {
+    // přesné sjednocení kruhů: mřížka 20 m, buňka platí, když je její střed v kruhu
+    // (hrubší mřížka nadhodnocovala stovky malých kruhů proti pár velkým)
     const cells = new Set();
-    const CS = 60;
-    for (const c of rows) {
-      const n = Math.ceil(c.r / CS);
-      const cx = Math.round(c.x / CS), cy = Math.round(c.y / CS);
+    const CS = 20;
+    for (const c of inMap) {
+      const n = Math.floor(c.r / CS) + 1;
+      const cx = Math.floor(c.x / CS), cy = Math.floor(c.y / CS);
       for (let dx = -n; dx <= n; dx++) {
         for (let dy = -n; dy <= n; dy++) {
-          if (dx * dx + dy * dy <= n * n) cells.add(`${cx + dx}:${cy + dy}`);
+          const px = (cx + dx) * CS + CS / 2, py = (cy + dy) * CS + CS / 2;
+          if ((px - c.x) ** 2 + (py - c.y) ** 2 <= c.r * c.r) cells.add(`${cx + dx}:${cy + dy}`);
         }
       }
     }
-    cached = { key: rows.length, ha: Math.round(cells.size * CS * CS / 10000) };
+    cached = { key: inMap.length, ha: Math.round(cells.size * CS * CS / 10000) };
     scoreAreaCache.set(playerId, cached);
   }
   parts.map = Math.round(cached.ha / 3);
