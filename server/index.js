@@ -202,6 +202,17 @@ function fairSplit(poly) {
   }
 }
 
+// jednorázově (31. 8. 2026): Áje vypadl internet na procházce u Pole 53 — doplnění kruhu odhalení
+if (!metaGet('aja_kruh_pole53')) {
+  const aja = q.get("SELECT id FROM players WHERE name = 'Ája'");
+  const pole53 = [...G.provinces.values()].find((p) => p.name === 'Pole 53');
+  if (aja && pole53) {
+    G.addDiscovery(aja.id, pole53.c[0], pole53.c[1], 300);
+    console.log('Áje doplněn kruh odhalení u Pole 53 (výpadek internetu).');
+  }
+  metaSet('aja_kruh_pole53', '1');
+}
+
 // jednorázově (29. 8. 2026): vrácení účtu Nikol — ztratil ho souběh záloh při deployi.
 // Přihlašovací údaje pochází z její závěrečné zálohy; dostane čerstvý startovní balíček.
 if (!metaGet('nikol_restore_2908')) {
